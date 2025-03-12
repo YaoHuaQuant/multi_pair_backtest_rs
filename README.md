@@ -1,0 +1,2 @@
+# multi_pair_backtest_rs
+支持多种交易对的量化交易回测框架
