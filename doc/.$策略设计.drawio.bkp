@@ -1,0 +1,148 @@
+<mxfile host="Electron" modified="2025-02-28T05:21:45.671Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.6.4 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" etag="L7Mg1SdBp7okrQczbrAN" version="24.6.4" type="device">
+  <diagram name="第 1 页" id="lSXwwyKY9a4dZqknM7-H">
+    <mxGraphModel dx="1562" dy="2078" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--1" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Heading&lt;/h1&gt;&lt;p&gt;Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="30" y="20" width="180" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--2" value="量化策略设计" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=20;fontStyle=1;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="440" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--3" value="目标" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;fontSize=18;fontStyle=1;verticalAlign=top;dashed=1;strokeWidth=2;gradientColor=none;horizontal=1;" parent="1" vertex="1">
+          <mxGeometry x="320" y="120" width="760" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--4" value="策略" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;fontSize=18;fontStyle=1;verticalAlign=top;dashed=1;strokeWidth=2;gradientColor=none;" parent="1" vertex="1">
+          <mxGeometry x="40" y="320" width="1360" height="680" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--5" target="Qi-_XCWJ-lGAgsF__VU--8" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--5" target="Qi-_XCWJ-lGAgsF__VU--12" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--5" value="1.资金安全" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="400" y="160" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--6" target="Qi-_XCWJ-lGAgsF__VU--15" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--6" target="Qi-_XCWJ-lGAgsF__VU--14" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--6" value="2.持续收益" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="640" y="160" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--36" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--7" target="Qi-_XCWJ-lGAgsF__VU--31" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--7" target="Qi-_XCWJ-lGAgsF__VU--32" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--7" value="3.高收益率" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="880" y="160" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--8" target="Qi-_XCWJ-lGAgsF__VU--9" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--8" target="Qi-_XCWJ-lGAgsF__VU--42" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--8" value="1.1. 避免爆仓" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="160" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--9" target="Qi-_XCWJ-lGAgsF__VU--40" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--9" value="以long为主" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="80" y="480" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--12" target="Qi-_XCWJ-lGAgsF__VU--21" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--12" value="1.2. 低回撤" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="400" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--14" value="2.2.&amp;nbsp;&lt;div&gt;少量多次&lt;/div&gt;&lt;div&gt;高频交易&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="720" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--15" target="Qi-_XCWJ-lGAgsF__VU--21" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--15" value="2.1.&lt;div&gt;只做止盈&lt;/div&gt;&lt;div&gt;不做止损&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="560" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--20" value="&lt;div&gt;高价位轻仓&lt;/div&gt;&lt;div&gt;低价位重仓&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="560" y="720" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--21" target="Qi-_XCWJ-lGAgsF__VU--24" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--21" target="Qi-_XCWJ-lGAgsF__VU--25" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--21" value="动态仓位调整策略" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="480" y="480" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--24" target="Qi-_XCWJ-lGAgsF__VU--20" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--24" value="价格策略（主）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="560" y="600" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--25" target="Qi-_XCWJ-lGAgsF__VU--29" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--25" value="趋势策略（次）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="400" y="600" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--29" value="&lt;div&gt;上涨趋势提高多仓&lt;/div&gt;&lt;div&gt;下跌趋势减少多仓&lt;/div&gt;&lt;div&gt;震荡趋势多空增加&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="400" y="720" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--50" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--31" target="Qi-_XCWJ-lGAgsF__VU--33" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--31" value="3.1.&amp;nbsp;&lt;span style=&quot;background-color: initial;&quot;&gt;币本位合约&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="880" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--32" target="Qi-_XCWJ-lGAgsF__VU--38" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--32" value="3.2. 资金费率对冲" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--33" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="880" y="480" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--38" value="U本位合约做空" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="480" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--40" value="杠杆率 ≤ 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="80" y="600" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--42" target="Qi-_XCWJ-lGAgsF__VU--44" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--42" value="short仓位&lt;div&gt;尽可能低&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="240" y="480" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--44" target="Qi-_XCWJ-lGAgsF__VU--47" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--49" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="Qi-_XCWJ-lGAgsF__VU--44" target="Qi-_XCWJ-lGAgsF__VU--46" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--44" value="只在极限条件下做open short" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="240" y="600" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--46" value="极限情况1：&lt;div&gt;价格极高&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="80" y="760" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="Qi-_XCWJ-lGAgsF__VU--47" value="极限情况2：&lt;div&gt;资金费率偏差较大&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=0;strokeWidth=2;" parent="1" vertex="1">
+          <mxGeometry x="240" y="760" width="120" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

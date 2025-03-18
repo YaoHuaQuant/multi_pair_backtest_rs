@@ -1,0 +1,8 @@
+[package]
+name = "multi_pair_backtest_rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rust_decimal = "1.36.0"
+uuid = { version = "1.15.1", features = ["v4"] }

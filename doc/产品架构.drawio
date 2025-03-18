@@ -1,0 +1,43 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.6.4 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" modified="2025-02-19T02:42:08.793Z" version="24.6.4" etag="BAWwS_eoLhaZETGSDPFl" type="device">
+  <diagram name="第 1 页" id="F4dAkYMisPp_Crrg1WQa">
+    <mxGraphModel dx="1221" dy="717" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Utv8JqaEtYpSMMh2lk40-6" value="功能" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=16;fontFamily=Helvetica;verticalAlign=top;dashed=1;" parent="1" vertex="1">
+          <mxGeometry x="480" y="200" width="600" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="Utv8JqaEtYpSMMh2lk40-1" value="&lt;font face=&quot;Helvetica&quot;&gt;UI&amp;nbsp;&lt;/font&gt;&lt;span style=&quot;font-family: Sy8tqLKlV03e3ipVPrkG; background-color: initial;&quot;&gt;用户界面层&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=16;fontFamily=Helvetica;dashed=1;horizontal=1;verticalAlign=top;" parent="1" vertex="1">
+          <mxGeometry x="480" width="600" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="Utv8JqaEtYpSMMh2lk40-39" value="数据展示" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;verticalAlign=top;" parent="1" vertex="1">
+          <mxGeometry x="560" y="260" width="190" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="Utv8JqaEtYpSMMh2lk40-19" value="交易数据" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;" parent="1" vertex="1">
+          <mxGeometry x="605" y="310" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="Utv8JqaEtYpSMMh2lk40-62" value="分析数据" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;" parent="1" vertex="1">
+          <mxGeometry x="605" y="390" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="h0Sva6i2f6J_MbxwX-01-1" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;产品架构&lt;/h1&gt;&lt;p&gt;### 需求&lt;/p&gt;&lt;p&gt;&amp;nbsp;- 主要目标：资产增值，在保障资金安全的前提下，尽可能提高收益率。&lt;/p&gt;&lt;p&gt;&amp;nbsp;- 数据报表展示&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- 交易数据 汇总/明细&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- 分析数据 汇总/明细&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;- 用户自定义分析指标&lt;/p&gt;&lt;p&gt;&amp;nbsp;- 用户操作：&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- 紧急熔断：暂停交易、一键平仓、降低杠杆、锁定最大仓位 等&lt;/p&gt;&lt;p&gt;### 架构&lt;/p&gt;&lt;p&gt;&amp;nbsp;- UI&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- web端&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- 移动端&lt;/p&gt;&lt;p&gt;&amp;nbsp;- 功能&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- 数据展示&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;- 交易数据&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;- 分析数据&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp;- 用户操作&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;- 添加指标&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp;- 紧急熔断&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;- 仓位控制：暂停交易、一键平仓、降低杠杆、锁定最大仓位 等&lt;/p&gt;&lt;p&gt;&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;- 订单控制：挂单、撤单、调整价格&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="400" height="610" as="geometry" />
+        </mxCell>
+        <mxCell id="h0Sva6i2f6J_MbxwX-01-2" value="WEB端" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="580" y="40" width="110" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="h0Sva6i2f6J_MbxwX-01-3" value="移动端" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="900" y="45" width="110" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="h0Sva6i2f6J_MbxwX-01-5" value="用户操作" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="830" y="260" width="190" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="h0Sva6i2f6J_MbxwX-01-6" value="添加分析指标" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="875" y="310" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="h0Sva6i2f6J_MbxwX-01-7" value="紧急熔断操作" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;fontSize=14;fontFamily=Helvetica;" vertex="1" parent="1">
+          <mxGeometry x="875" y="390" width="100" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
