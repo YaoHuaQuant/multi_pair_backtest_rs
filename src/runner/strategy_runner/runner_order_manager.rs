@@ -5,6 +5,8 @@ use uuid::Uuid;
 use crate::order::EOrderAction;
 use crate::runner::strategy_runner::runner_order::{EOrderUpdate, SOrder};
 
+pub type ROrderManagerResult<T> = Result<T, EOrderManagerError>;
+
 /// 订单管理器异常
 #[derive(Debug)]
 pub enum EOrderManagerError {
@@ -40,8 +42,8 @@ impl PartialOrd for SOrder {
 }
 
 /// 订单管理器
-#[derive(Debug)]
-struct SOrderManager {
+#[derive(Debug, Default)]
+pub struct SOrderManager {
     // 订单池
     pub orders: HashMap<Uuid, SOrder>,
 
@@ -104,7 +106,7 @@ impl SOrderManager {
     }
 
     ///（非pub）更新单个订单 不做堆重构
-    fn update_order(&mut self, uuid: Uuid, update: EOrderUpdate) -> Result<(), EOrderManagerError> {
+    fn update_order(&mut self, uuid: Uuid, update: EOrderUpdate) -> ROrderManagerResult<()> {
         let order = self.orders.get_mut(&uuid);
         match order {
             None => {
@@ -124,7 +126,7 @@ impl SOrderManager {
 
     /// （pub）更新或删除多个订单 需要做堆重构
     /// 如果订单价格被修改 或者 订单被删除 则需要做堆重构
-    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> Result<(), EOrderManagerError> {
+    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> ROrderManagerResult<()> {
         // 标记需要从堆中剔除的元素
         let mut buy_delete_set = HashSet::new();
         let mut sell_delete_set = HashSet::new();
