@@ -13,6 +13,7 @@ pub enum EAssetType {
 }
 
 /// 资产对象
+#[derive(Debug)]
 pub struct SAsset {
     /// 资产类型
     pub as_type: EAssetType,

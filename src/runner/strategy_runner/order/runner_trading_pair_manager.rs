@@ -8,9 +8,9 @@ use crate::assert::trading_pair::ETradingPairType;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::runner_order::SOrder;
-use crate::runner::strategy_runner::runner_order_manager::{EOrderManagerError, ROrderManagerResult, SOrderUuidAndUpdate};
-use crate::runner::strategy_runner::runner_trading_pair::STradingPair;
+use crate::runner::strategy_runner::order::runner_order::SOrder;
+use crate::runner::strategy_runner::order::runner_order_manager::{ROrderManagerResult, SOrderUuidAndUpdate};
+use crate::runner::strategy_runner::order::runner_trading_pair::STradingPair;
 
 pub type RTradingPairManagerResult<T> = Result<T, ETradingPairManagerError>;
 
@@ -30,6 +30,10 @@ impl STradingPairManager {
     }
 
     pub fn add_trading_pair(&mut self, ty_type: ETradingPairType, kline_data: SKlineData, funding_rate: Option<SFundingRateData>) {
+        self.trading_pair_map.entry(ty_type).or_insert(STradingPair::new(ty_type, kline_data, funding_rate));
+    }
+
+    pub fn add_trading_pairs(&mut self, ty_type: ETradingPairType, kline_data: SKlineData, funding_rate: Option<SFundingRateData>) {
         self.trading_pair_map.entry(ty_type).or_insert(STradingPair::new(ty_type, kline_data, funding_rate));
     }
 
@@ -128,7 +132,7 @@ impl STradingPairManager {
 mod tests {
     use crate::assert::trading_pair::ETradingPairType;
     use crate::data::kline::SKlineData;
-    use crate::runner::strategy_runner::runner_trading_pair_manager::STradingPairManager;
+    use crate::runner::strategy_runner::order::runner_trading_pair_manager::STradingPairManager;
 
     #[test]
     pub fn test_add_pair() {

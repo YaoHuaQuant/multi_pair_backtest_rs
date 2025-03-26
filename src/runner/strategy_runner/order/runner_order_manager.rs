@@ -3,7 +3,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::runner_order::{EOrderUpdate, SOrder};
+use crate::runner::strategy_runner::order::runner_order::{EOrderUpdate, SOrder};
 
 pub type ROrderManagerResult<T> = Result<T, EOrderManagerError>;
 
@@ -228,10 +228,10 @@ mod tests {
     use std::str::FromStr;
     use rust_decimal::Decimal;
     use crate::order::EOrderAction;
-    use crate::runner::strategy_runner::runner_order::EOrderUpdate::Price;
-    use crate::runner::strategy_runner::runner_order::SOrder;
-    use crate::runner::strategy_runner::runner_order_manager::{SOrderManager, SOrderUuidAndUpdate};
-    use crate::runner::strategy_runner::runner_order_manager::EOrderManagerUpdate::Update;
+    use crate::runner::strategy_runner::order::runner_order::EOrderUpdate::Price;
+    use crate::runner::strategy_runner::order::runner_order::SOrder;
+    use crate::runner::strategy_runner::order::runner_order_manager::{SOrderManager, SOrderUuidAndUpdate};
+    use crate::runner::strategy_runner::order::runner_order_manager::EOrderManagerUpdate::Update;
 
     #[test]
     pub fn test_update_or_remove_orders_buy() {

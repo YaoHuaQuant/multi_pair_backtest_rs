@@ -58,6 +58,17 @@ impl SKlineData {
         );
     }
 
+    /// 插入新的数据点
+    pub fn insert_unit(
+        &mut self,
+        unit_data: SKlineUnitData,
+    ) {
+        self.data.insert(
+            unit_data.open_time,
+            unit_data,
+        );
+    }
+
     /// 获取特定时刻的k线数据
     pub fn get(&self, time: DateTime<Local>) -> Option<&SKlineUnitData> {
         self.data.get(&time)

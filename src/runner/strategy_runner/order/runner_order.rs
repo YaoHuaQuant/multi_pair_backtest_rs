@@ -82,7 +82,7 @@ impl SOrder {
 #[cfg(test)]
 mod tests {
     use rust_decimal::prelude::*;
-    use crate::runner::strategy_runner::runner_order::{EOrderState, EOrderUpdate, SOrder};
+    use crate::runner::strategy_runner::order::runner_order::{EOrderState, EOrderUpdate, SOrder};
 
     #[test]
     pub fn test1() {

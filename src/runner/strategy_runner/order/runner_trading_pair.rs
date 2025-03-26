@@ -8,8 +8,8 @@ use crate::assert::trading_pair::ETradingPairType;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::runner_order::{EOrderUpdate, SOrder};
-use crate::runner::strategy_runner::runner_order_manager::{EOrderManagerError, EOrderManagerUpdate, SOrderManager, SOrderUuidAndUpdate};
+use crate::runner::strategy_runner::order::runner_order::SOrder;
+use crate::runner::strategy_runner::order::runner_order_manager::{EOrderManagerError, SOrderManager, SOrderUuidAndUpdate};
 
 /// 交易对
 #[derive(Debug)]

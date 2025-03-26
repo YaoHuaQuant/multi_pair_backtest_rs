@@ -18,9 +18,11 @@
     - order
         - order_enum // 订单公共属性枚举
     - data // 数据管理
+        - db // 数据库连接
         - kline // k线
         - funding_rate // 资金费率
     - assert // 资产管理
         - trading_pair // 交易对
         - assert // 资产 及 资产管理器
+    - protocol // 数据传输协议
 ```

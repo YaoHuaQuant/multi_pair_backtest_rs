@@ -23,6 +23,7 @@ impl SFundingRateData {
             data: Default::default(),
         }
     }
+
     /// 插入新的数据点
     pub fn insert(&mut self, time: DateTime<Local>, funding_rate: Decimal) {
         self.data.insert(
@@ -31,6 +32,14 @@ impl SFundingRateData {
                 time,
                 funding_rate,
             },
+        );
+    }
+
+    /// 插入新的数据点
+    pub fn insert_unit(&mut self, unit_data: SFundingRateUnitData) {
+        self.data.insert(
+            unit_data.time,
+            unit_data,
         );
     }
 
