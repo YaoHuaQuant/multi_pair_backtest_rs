@@ -1,9 +1,10 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap, HashSet};
+use log::error;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::order::runner_order::{EOrderUpdate, SOrder};
+use crate::runner::strategy_runner::order::runner_order::{EOrderUpdate, SAddOrder, SOrder};
 
 pub type ROrderManagerResult<T> = Result<T, EOrderManagerError>;
 
@@ -15,9 +16,10 @@ pub enum EOrderManagerError {
 }
 
 /// 订单管理器更新
+#[derive(Debug, Copy, Clone)]
 pub enum EOrderManagerUpdate {
     Update(EOrderUpdate),
-    Remove(),
+    Remove,
 }
 
 // ----- 为订单提供排序功能 -----
@@ -61,6 +63,7 @@ pub struct SOrderManager {
 }
 
 /// 保存uuid和EOrderManagerUpdate的映射
+#[derive(Debug)]
 pub struct SOrderUuidAndUpdate {
     pub uuid: Uuid,
     pub update: EOrderManagerUpdate,
@@ -79,7 +82,10 @@ impl SOrderManager {
 
     /// 添加订单
     /// 分别添加至 订单池 和 买单堆/卖单堆 中
-    pub fn add_order(&mut self, price: Decimal, quantity: Decimal, action: EOrderAction) -> Uuid {
+    pub fn add_order(&mut self, add_order: SAddOrder) -> Uuid {
+        let action = add_order.action;
+        let price = add_order.price;
+        let quantity = add_order.quantity;
         let order = SOrder {
             id: Uuid::new_v4(),
             state: Default::default(),
@@ -126,41 +132,54 @@ impl SOrderManager {
 
     /// （pub）更新或删除多个订单 需要做堆重构
     /// 如果订单价格被修改 或者 订单被删除 则需要做堆重构
-    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> ROrderManagerResult<()> {
+    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> ROrderManagerResult<Vec<SOrderUuidAndUpdate>> {
         // 标记需要从堆中剔除的元素
         let mut buy_delete_set = HashSet::new();
         let mut sell_delete_set = HashSet::new();
 
+        // 保存执行成功的订单 用于返回
+        let mut success_list: Vec<SOrderUuidAndUpdate> = Vec::new();
+
         for item in uuid_update_list {
-            let SOrderUuidAndUpdate { uuid, update } = item;
+            let SOrderUuidAndUpdate { uuid, update: manager_update } = item;
             // 变更订单
-            let _result = match update {
-                EOrderManagerUpdate::Update(update) => {
-                    let result = self.update_order(uuid, update);
+            match manager_update {
+                EOrderManagerUpdate::Update(order_update) => {
+                    let result = self.update_order(uuid, order_update);
                     match result {
                         Err(err) => {
-                            eprintln!("{:?}", err);
-                            Err(err)
+                            error!("{:?}", err);
                         }
                         Ok(_) => {
-                            if let EOrderUpdate::Price(_) = update {
+                            if let EOrderUpdate::Price(_) = order_update {
                                 match self.peek_order(uuid) {
                                     None => {}
                                     Some(order) => {
                                         match order.action {
-                                            EOrderAction::Buy => { buy_delete_set.insert(uuid); }
-                                            EOrderAction::Sell => { sell_delete_set.insert(uuid); }
+                                            EOrderAction::Buy => {
+                                                buy_delete_set.insert(uuid);
+                                            }
+                                            EOrderAction::Sell => {
+                                                sell_delete_set.insert(uuid);
+                                            }
                                         }
                                     }
                                 }
+                                success_list.push(SOrderUuidAndUpdate {
+                                    uuid,
+                                    update: EOrderManagerUpdate::Update(order_update),
+                                })
                             }
-                            self.update_order(uuid, update)
                         }
                     }
                 }
-                EOrderManagerUpdate::Remove() => {
-                    let _removed_order = self.remove_order(&uuid);
-                    Ok(())
+                EOrderManagerUpdate::Remove => {
+                    if !self.remove_order(&uuid).is_none() {
+                        success_list.push(SOrderUuidAndUpdate {
+                            uuid,
+                            update: EOrderManagerUpdate::Remove,
+                        })
+                    }
                 }
             };
         }
@@ -188,7 +207,7 @@ impl SOrderManager {
                 }
             }
         }
-        Ok(())
+        Ok(success_list)
     }
 
     /// 查看最高价的买单 获取其引用
@@ -229,7 +248,7 @@ mod tests {
     use rust_decimal::Decimal;
     use crate::order::EOrderAction;
     use crate::runner::strategy_runner::order::runner_order::EOrderUpdate::Price;
-    use crate::runner::strategy_runner::order::runner_order::SOrder;
+    use crate::runner::strategy_runner::order::runner_order::{SAddOrder, SOrder};
     use crate::runner::strategy_runner::order::runner_order_manager::{SOrderManager, SOrderUuidAndUpdate};
     use crate::runner::strategy_runner::order::runner_order_manager::EOrderManagerUpdate::Update;
 
@@ -249,7 +268,11 @@ mod tests {
         let mut id_vec = vec![];
 
         for price in price_vec {
-            let id = manager.add_order(price, Decimal::from_str("0.01").unwrap(), EOrderAction::Buy);
+            let id = manager.add_order(SAddOrder {
+                action: EOrderAction::Buy,
+                price,
+                quantity: Decimal::from_str("0.01").unwrap(),
+            });
             id_vec.push(id)
         }
 
@@ -270,7 +293,7 @@ mod tests {
         dbg!(&manager);
 
         println!("Pop result:");
-        let mut pop_vec:Vec<SOrder> = vec![];
+        let mut pop_vec: Vec<SOrder> = vec![];
         while !manager.buying_order_heap.is_empty() {
             let order = manager.buying_order_heap.pop().unwrap();
             println!("{:?}", &order);
@@ -301,7 +324,11 @@ mod tests {
         let mut id_vec = vec![];
 
         for price in price_vec {
-            let id = manager.add_order(price, Decimal::from_str("0.01").unwrap(), EOrderAction::Sell);
+            let id = manager.add_order(SAddOrder {
+                action: EOrderAction::Sell,
+                price,
+                quantity: Decimal::from_str("0.01").unwrap(),
+            });
             id_vec.push(id)
         }
 
@@ -316,13 +343,14 @@ mod tests {
             update: Update(Price(Decimal::from_str("150").unwrap())),
         }];
 
-        let _result = manager.update_or_remove_orders(update_list);
+        let result = manager.update_or_remove_orders(update_list);
+        println!("update result: {:?}", result);
 
         println!("After update:");
         dbg!(&manager);
 
         println!("Pop result:");
-        let mut pop_vec:Vec<SOrder> = vec![];
+        let mut pop_vec: Vec<SOrder> = vec![];
         while !manager.selling_order_heap.is_empty() {
             let Reverse(order) = manager.selling_order_heap.pop().unwrap();
             println!("{:?}", &order);

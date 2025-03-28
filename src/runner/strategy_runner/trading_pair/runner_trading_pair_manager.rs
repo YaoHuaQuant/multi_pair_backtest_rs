@@ -10,10 +10,11 @@ use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
 use crate::runner::strategy_runner::order::runner_order::SOrder;
 use crate::runner::strategy_runner::order::runner_order_manager::{ROrderManagerResult, SOrderUuidAndUpdate};
-use crate::runner::strategy_runner::order::runner_trading_pair::STradingPair;
+use crate::runner::strategy_runner::trading_pair::runner_trading_pair::STradingPair;
 
 pub type RTradingPairManagerResult<T> = Result<T, ETradingPairManagerError>;
 
+#[derive(Debug)]
 pub enum ETradingPairManagerError {
     TradingPairNotFoundError(ETradingPairType)
 }
@@ -51,6 +52,47 @@ impl STradingPairManager {
         }
     }
 
+
+    /// 获取第一个日期
+    pub fn get_first_date(&self) -> Option<&DateTime<Local>> {
+        let mut max_value :Option<&DateTime<Local>> = None;
+        for item in self.trading_pair_map.iter() {
+            // 检查k线
+            if let Some((date, _)) =  item.1.kline_data.data.first_key_value() {
+                match max_value {
+                    None => {max_value = Some(date)}
+                    Some(max) => {
+                        if max > date {
+                            max_value = Some(date)
+                        }
+                    }
+                }
+            }
+            // 不检查资金费率
+        }
+        max_value
+    }
+
+    /// 获取最后一个日期
+    pub fn get_last_date(&self) -> Option<&DateTime<Local>> {
+        let mut min_value:Option<&DateTime<Local>> = None;
+        for item in self.trading_pair_map.iter() {
+            // 检查k线
+            if let Some((date, _)) =  item.1.kline_data.data.first_key_value() {
+                match min_value {
+                    None => { min_value = Some(date)}
+                    Some(min) => {
+                        if min < date {
+                            min_value = Some(date)
+                        }
+                    }
+                }
+            }
+            // 不检查资金费率
+        }
+        min_value
+    }
+
     // region ----- 转发STradingPair函数-----
     pub fn add_order(&mut self, tp_type: ETradingPairType, price: Decimal, quantity: Decimal, action: EOrderAction) -> RTradingPairManagerResult<Uuid> {
         Ok(self.get_mut(tp_type)?.add_order(price, quantity, action))
@@ -60,7 +102,7 @@ impl STradingPairManager {
         Ok(self.get(tp_type)?.peek_order(uuid))
     }
 
-    pub fn update_or_remove_orders(&mut self, tp_type: ETradingPairType, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> RTradingPairManagerResult<ROrderManagerResult<()>> {
+    pub fn update_or_remove_orders(&mut self, tp_type: ETradingPairType, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> RTradingPairManagerResult<ROrderManagerResult<Vec<SOrderUuidAndUpdate>>> {
         Ok(self.get_mut(tp_type)?.update_or_remove_orders(uuid_update_list))
     }
 
@@ -80,11 +122,11 @@ impl STradingPairManager {
         Ok(self.get_mut(tp_type)?.pop_lowest_sell_order())
     }
 
-    pub fn insert_funding_rate(&mut self, tp_type: ETradingPairType, time: DateTime<Local>, funding_rate: Decimal) -> RTradingPairManagerResult<()> {
+    pub fn insert_funding_rate(&mut self, tp_type: ETradingPairType, time: &DateTime<Local>, funding_rate: Decimal) -> RTradingPairManagerResult<()> {
         Ok(self.get_mut(tp_type)?.insert_funding_rate(time, funding_rate))
     }
 
-    pub fn get_funding_rate(&self, tp_type: ETradingPairType, time: DateTime<Local>) -> RTradingPairManagerResult<Option<&Decimal>> {
+    pub fn get_funding_rate(&self, tp_type: ETradingPairType, time: &DateTime<Local>) -> RTradingPairManagerResult<Option<&Decimal>> {
         Ok(self.get(tp_type)?.get_funding_rate(time))
     }
 
@@ -114,7 +156,7 @@ impl STradingPairManager {
         Ok(self.get_mut(tp_type)?.insert_kline(open_time, close_time, open_price, close_price, high_price, low_price, volume))
     }
 
-    pub fn get_kline(&self, tp_type: ETradingPairType, time: DateTime<Local>) -> RTradingPairManagerResult<Option<&SKlineUnitData>> {
+    pub fn get_kline(&self, tp_type: ETradingPairType, time: &DateTime<Local>) -> RTradingPairManagerResult<Option<&SKlineUnitData>> {
         Ok(self.get(tp_type)?.get_kline(time))
     }
 
@@ -132,7 +174,7 @@ impl STradingPairManager {
 mod tests {
     use crate::assert::trading_pair::ETradingPairType;
     use crate::data::kline::SKlineData;
-    use crate::runner::strategy_runner::order::runner_trading_pair_manager::STradingPairManager;
+    use crate::runner::strategy_runner::trading_pair::runner_trading_pair_manager::STradingPairManager;
 
     #[test]
     pub fn test_add_pair() {

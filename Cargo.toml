@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 chrono = {version = "0.4.40", features = ["serde"]}
 clickhouse = "0.13.2"
+dotenv = "0.15.0"
+env_logger = "0.11.7"
+log = "0.4.27"
 rand = "0.9.0"
 rust_decimal = "1.36.0"
 serde = { version = "1.0.219", features = ["derive"] }

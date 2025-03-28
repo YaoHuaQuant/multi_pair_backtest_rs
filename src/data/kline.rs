@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
+use crate::utils;
 
 /// K线单根数据
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SKlineUnitData {
     /// 开盘时间-带本地时区的DataTime
     pub open_time: DateTime<Local>,
@@ -44,6 +45,7 @@ impl SKlineData {
         low_price: Decimal,
         volume: Decimal,
     ) {
+        let open_time = utils::date_time::normalize_to_minute(&open_time);
         self.data.insert(
             open_time,
             SKlineUnitData {
@@ -70,8 +72,8 @@ impl SKlineData {
     }
 
     /// 获取特定时刻的k线数据
-    pub fn get(&self, time: DateTime<Local>) -> Option<&SKlineUnitData> {
-        self.data.get(&time)
+    pub fn get(&self, time: &DateTime<Local>) -> Option<&SKlineUnitData> {
+        self.data.get(time)
     }
 
     /// 获取特定时间范围的k线数据
@@ -95,6 +97,7 @@ mod tests {
     use rust_decimal::Decimal;
 
     use crate::data::kline::{SKlineData, SKlineUnitData};
+    use crate::utils;
 
     const DATA_NUM: i64 = 9;
 
@@ -106,9 +109,9 @@ mod tests {
         let mut inputs = Vec::new();
         for offset in 0..DATA_NUM {
             /// 开盘时间-带本地时区的DataTime
-            let open_time = now - chrono::Duration::seconds(10 * DATA_NUM - offset * 10);
+            let open_time = utils::date_time::normalize_to_minute(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10));
             /// 收盘时间
-            let close_time = now - chrono::Duration::seconds(10 * DATA_NUM - offset * 10 + 5);
+            let close_time = now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10 + 5);
             let open_price = Decimal::from(100 + offset * 10);
             let close_price = Decimal::from(105 + offset * 10);
             let high_price = Decimal::from(110 + offset * 10);

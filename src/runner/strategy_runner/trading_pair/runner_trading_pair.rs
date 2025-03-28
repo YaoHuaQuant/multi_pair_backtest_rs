@@ -8,7 +8,7 @@ use crate::assert::trading_pair::ETradingPairType;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::order::runner_order::SOrder;
+use crate::runner::strategy_runner::order::runner_order::{SAddOrder, SOrder};
 use crate::runner::strategy_runner::order::runner_order_manager::{EOrderManagerError, SOrderManager, SOrderUuidAndUpdate};
 
 /// 交易对
@@ -39,14 +39,14 @@ impl STradingPair {
 
     // region ----- 转发SOrderManager函数 -----
     pub fn add_order(&mut self, price: Decimal, quantity: Decimal, action: EOrderAction) -> Uuid {
-        self.order_manager.add_order(price, quantity, action)
+        self.order_manager.add_order(SAddOrder { price, quantity, action })
     }
 
     pub fn peek_order(&self, uuid: Uuid) -> Option<&SOrder> {
         self.order_manager.peek_order(uuid)
     }
 
-    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> Result<(), EOrderManagerError> {
+    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> Result<Vec<SOrderUuidAndUpdate>, EOrderManagerError> {
         self.order_manager.update_or_remove_orders(uuid_update_list)
     }
 
@@ -68,14 +68,14 @@ impl STradingPair {
     // endregion ----- 转发SOrderManager函数-----
 
     // region ----- 转发SFundingRateData函数-----
-    pub fn insert_funding_rate(&mut self, time: DateTime<Local>, funding_rate: Decimal) {
+    pub fn insert_funding_rate(&mut self, time: &DateTime<Local>, funding_rate: Decimal) {
         match &mut self.funding_rate {
             None => {}
             Some(data) => { data.insert(time, funding_rate) }
         }
     }
 
-    pub fn get_funding_rate(&self, time: DateTime<Local>) -> Option<&Decimal> {
+    pub fn get_funding_rate(&self, time: &DateTime<Local>) -> Option<&Decimal> {
         match &self.funding_rate {
             None => { None }
             Some(data) => { data.get(time) }
@@ -111,7 +111,7 @@ impl STradingPair {
         self.kline_data.insert(open_time, close_time, open_price, close_price, high_price, low_price, volume)
     }
 
-    pub fn get_kline(&self, time: DateTime<Local>) -> Option<&SKlineUnitData> {
+    pub fn get_kline(&self, time: &DateTime<Local>) -> Option<&SKlineUnitData> {
         self.kline_data.get(time)
     }
 

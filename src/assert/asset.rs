@@ -94,7 +94,7 @@ impl SAsset {
     }
 
     /// 提取锁定额度（订单完成场景）
-    pub fn withdraw_unlock(&mut self, amount: Decimal) -> RAssetResult<()> {
+    pub fn withdraw_locked(&mut self, amount: Decimal) -> RAssetResult<()> {
         if amount <= self.amount_locked {
             self.amount_locked -= amount;
             Ok(())
@@ -152,15 +152,15 @@ mod tests {
     }
 
     #[test]
-    pub fn test_withdraw_unlock() {
+    pub fn test_withdraw_locked() {
         let mut asset = get_test_data();
-        let result = asset.withdraw_unlock(Decimal::from(100));
+        let result = asset.withdraw_locked(Decimal::from(100));
         assert!(matches!(result, Ok(())));
         assert_eq!(asset.get_locked(), Decimal::from(100));
-        let result = asset.withdraw_unlock(Decimal::from(100));
+        let result = asset.withdraw_locked(Decimal::from(100));
         assert!(matches!(result, Ok(())));
         assert_eq!(asset.get_locked(), Decimal::from(0));
-        let result = asset.withdraw_unlock(Decimal::from(100));
+        let result = asset.withdraw_locked(Decimal::from(100));
         let v1 = Decimal::from(0);
         let v2 = Decimal::from(100);
         dbg!(&result);

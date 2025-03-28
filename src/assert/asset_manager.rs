@@ -76,8 +76,8 @@ impl SAssetManager {
         Ok(self.get_mut(as_type)?.unlock(amount))
     }
 
-    pub fn withdraw_unlock(&mut self, as_type: EAssetType, amount: Decimal) -> RAssetManagerResult<RAssetResult<()>> {
-        Ok(self.get_mut(as_type)?.withdraw_unlock(amount))
+    pub fn withdraw_locked(&mut self, as_type: EAssetType, amount: Decimal) -> RAssetManagerResult<RAssetResult<()>> {
+        Ok(self.get_mut(as_type)?.withdraw_locked(amount))
     }
     // endregion ----- 转发SAsset函数-----
 }

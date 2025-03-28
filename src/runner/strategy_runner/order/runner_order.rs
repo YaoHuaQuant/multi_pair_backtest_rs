@@ -19,11 +19,15 @@ pub enum EOrderState {
     Unknown,
 }
 
+pub type PriceDecimal = Decimal;
+pub type QuantityDecimal = Decimal;
+
 /// 订单更新
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum EOrderUpdate {
     Price(Decimal),
     Quantity(Decimal),
+    PriceAndQuantity(PriceDecimal, QuantityDecimal),
     State(EOrderState),
 }
 
@@ -32,6 +36,13 @@ pub enum EOrderUpdate {
 pub struct SOrder {
     pub id: Uuid,
     pub state: EOrderState,
+    pub action: EOrderAction,
+    pub price: Decimal,
+    pub quantity: Decimal,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SAddOrder {
     pub action: EOrderAction,
     pub price: Decimal,
     pub quantity: Decimal,
@@ -67,13 +78,17 @@ impl SOrder {
     pub fn update(&mut self, update: EOrderUpdate) {
         match update {
             EOrderUpdate::Price(price) => {
-                self.price = price
+                self.price = price;
             }
             EOrderUpdate::Quantity(quantity) => {
-                self.quantity = quantity
+                self.quantity = quantity;
             }
             EOrderUpdate::State(state) => {
-                self.state = state
+                self.state = state;
+            }
+            EOrderUpdate::PriceAndQuantity(price, quantity) => {
+                self.price = price;
+                self.quantity = quantity;
             }
         }
     }

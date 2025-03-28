@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Timelike};
 use rust_decimal::Decimal;
+use crate::utils;
 
 /// 资金费率数据
 #[derive(Debug)]
@@ -25,7 +26,8 @@ impl SFundingRateData {
     }
 
     /// 插入新的数据点
-    pub fn insert(&mut self, time: DateTime<Local>, funding_rate: Decimal) {
+    pub fn insert(&mut self, time: &DateTime<Local>, funding_rate: Decimal) {
+        let time = utils::date_time::normalize_to_minute(time);
         self.data.insert(
             time,
             SFundingRateUnitData {
@@ -44,8 +46,8 @@ impl SFundingRateData {
     }
 
     /// 获取特定时刻的资金费率
-    pub fn get(&self, time: DateTime<Local>) -> Option<&Decimal> {
-        match self.data.get(&time) {
+    pub fn get(&self, time: &DateTime<Local>) -> Option<&Decimal> {
+        match self.data.get(&utils::date_time::normalize_to_minute(time)) {
             None => { None }
             Some(item) => { Some(&item.funding_rate) }
         }
@@ -71,6 +73,7 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal::prelude::FromPrimitive;
     use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
+    use crate::utils;
 
     const DATA_NUM: i64 = 9;
 
@@ -82,7 +85,7 @@ mod tests {
         let now = Local::now();
         let mut inputs = Vec::new();
         for offset in 0..DATA_NUM {
-            let time = now - chrono::Duration::seconds(10 * DATA_NUM - offset * 10);
+            let time = utils::date_time::normalize_to_minute(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10));
             let funding_rate = Decimal::from_f64(0.1 + offset as f64 * 0.01).unwrap();
             inputs.push(
                 SFundingRateUnitData {

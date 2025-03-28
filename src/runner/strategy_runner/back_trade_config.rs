@@ -15,7 +15,7 @@ pub static MAKER_ORDER_FEE: f64 = 0.0002;
 pub static INIT_BALANCE_USDT: f64 = 1_000_000_.0;
 
 /// 初始资金量BTC
-pub static INIT_BALANCE_BTC: f64 = 0.0;
+pub static INIT_BALANCE_BTC: f64 = 1.0;
 
 /// 回测起始日期
 pub fn config_date_from() -> DateTime<Local> {
