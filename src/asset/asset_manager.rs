@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use rust_decimal::Decimal;
 
-use crate::assert::asset::{EAssetType, RAssetResult, SAsset};
+use crate::asset::asset::{RAssetResult, SAsset};
+use crate::asset::EAssetType;
 
 pub type RAssetManagerResult<T> = Result<T, EAssetManagerError>;
 
@@ -84,8 +85,8 @@ impl SAssetManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::assert::asset::EAssetType;
-    use crate::assert::asset_manager::{EAssetManagerError, SAssetManager};
+    use crate::asset::EAssetType;
+    use crate::asset::asset_manager::{EAssetManagerError, SAssetManager};
 
     #[test]
     pub fn test1() {

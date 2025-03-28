@@ -5,9 +5,10 @@ use log::{error, log};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
-use crate::assert::asset::{EAssetType, SAsset};
-use crate::assert::asset_manager::SAssetManager;
-use crate::assert::trading_pair::ETradingPairType;
+use crate::asset::asset::{SAsset};
+use crate::asset::asset_manager::SAssetManager;
+use crate::asset::EAssetType;
+use crate::asset::trading_pair::ETradingPairType;
 use crate::data::db::api::data_api_db::SDataApiDb;
 use crate::data::db::api::TDataApi;
 use crate::data::db::SDbClickhouse;
@@ -349,23 +350,24 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                     }
                 }
             }
+        }
 
-            // 处理新增订单 资产结算
-            for add_order in add_orders {
-                match add_order.action {
+        // 处理新增订单 资产结算
+        for add_order in add_orders {
+            match add_order.action {
                 EOrderAction::Buy => {
-                let necessary_quote_asset = add_order.price * add_order.quantity;
-                let mut quote_asset = asset_manager.get_mut(quote_asset_type).unwrap();
-                if quote_asset.lock(necessary_quote_asset).is_ok() {
-                order_manager.add_order(add_order);
-                }
+                    let necessary_quote_asset = add_order.price * add_order.quantity;
+                    let mut quote_asset = asset_manager.get_mut(quote_asset_type).unwrap();
+                    if quote_asset.lock(necessary_quote_asset).is_ok() {
+                        order_manager.add_order(add_order);
+                    }
                 }
                 EOrderAction::Sell => {
-                let necessary_base_asset = add_order.quantity;
-                let mut base_asset = asset_manager.get_mut(base_asset_type).unwrap();
-                if base_asset.lock(necessary_base_asset).is_ok() {
-                order_manager.add_order(add_order);
-                }
+                    let necessary_base_asset = add_order.quantity;
+                    let mut base_asset = asset_manager.get_mut(base_asset_type).unwrap();
+                    if base_asset.lock(necessary_base_asset).is_ok() {
+                        order_manager.add_order(add_order);
+                    }
                 }
             }
         }
@@ -373,23 +375,23 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         parse_action_result
     }
 
-        /// 向策略模块反馈校验、调整结果
-        fn response_verify_result( & mut self, action_result: Vec <ERunnerParseActionResult > ) {}
+    /// 向策略模块反馈校验、调整结果
+    fn response_verify_result(&mut self, action_result: Vec<ERunnerParseActionResult>) {}
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::data::db::api::data_api_db::SDataApiDb;
+    use crate::runner::strategy_runner::back_trade_runner::SBackTradeRunner;
+    use crate::strategy::strategy_mk_test::SStrategyMkTest;
+
+    #[tokio::test]
+    pub async fn test() {
+        let mut runner = SBackTradeRunner::<SDataApiDb, SStrategyMkTest>::new().await;
+        println!("{:?}", runner);
+
+        runner.run().unwrap();
+        println!("{:?}", runner);
     }
-
-
-    #[cfg(test)]
-    mod tests {
-        use crate::data::db::api::data_api_db::SDataApiDb;
-        use crate::runner::strategy_runner::back_trade_runner::SBackTradeRunner;
-        use crate::strategy::strategy_mk_test::SStrategyMkTest;
-
-        #[tokio::test]
-        pub async fn test() {
-            let mut runner = SBackTradeRunner::<SDataApiDb, SStrategyMkTest>::new().await;
-            println!("{:?}", runner);
-
-            runner.run().unwrap();
-            println!("{:?}", runner);
-        }
-    }
+}

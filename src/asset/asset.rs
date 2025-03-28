@@ -1,16 +1,5 @@
 use rust_decimal::Decimal;
-
-/// 资产类型
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum EAssetType {
-    Usdt,
-    /// U本位合约
-    BtcUsdtFuture,
-    /// Btc现货
-    Btc,
-    /// 币本位合约
-    BtcUsdCmFuture,
-}
+use crate::asset::EAssetType;
 
 /// 资产对象
 #[derive(Debug)]
@@ -18,9 +7,9 @@ pub struct SAsset {
     /// 资产类型
     pub as_type: EAssetType,
     /// 可用额度
-    amount_available: Decimal,
+    pub amount_available: Decimal,
     /// 锁定额度
-    amount_locked: Decimal,
+    pub amount_locked: Decimal,
 }
 
 pub type RAssetResult<T> = Result<T, EAssetError>;
@@ -108,7 +97,7 @@ impl SAsset {
 mod tests {
     use rust_decimal::Decimal;
 
-    use crate::assert::asset::{EAssetError, EAssetType, SAsset};
+    use crate::asset::asset::{EAssetError, EAssetType, SAsset};
 
     const INIT_AMOUNT_AVAILABLE: i64 = 100;
     const INIT_AMOUNT_LOCKED: i64 = 200;

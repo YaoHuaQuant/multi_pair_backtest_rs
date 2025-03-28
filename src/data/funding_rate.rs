@@ -85,7 +85,7 @@ mod tests {
         let now = Local::now();
         let mut inputs = Vec::new();
         for offset in 0..DATA_NUM {
-            let time = utils::date_time::normalize_to_minute(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10));
+            let time = utils::date_time::normalize_to_minute(&(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10)));
             let funding_rate = Decimal::from_f64(0.1 + offset as f64 * 0.01).unwrap();
             inputs.push(
                 SFundingRateUnitData {
@@ -100,7 +100,7 @@ mod tests {
         inputs.shuffle(&mut rng);
         for item in inputs {
             data.insert(
-                item.time,
+                &item.time,
                 item.funding_rate,
             );
         };
@@ -131,7 +131,7 @@ mod tests {
             println!("item: {:?}", &item);
             let time = item.0.clone();
             let funding_rate = item.1.funding_rate.clone();
-            let get_funding_rate = data.get(time).unwrap().clone();
+            let get_funding_rate = data.get(&time).unwrap().clone();
             println!("get_funding_rate: {:?}", &get_funding_rate);
             assert_eq!(funding_rate, get_funding_rate)
         }

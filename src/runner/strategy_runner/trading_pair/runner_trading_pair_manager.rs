@@ -4,7 +4,7 @@ use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use crate::assert::trading_pair::ETradingPairType;
+use crate::asset::trading_pair::ETradingPairType;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
@@ -172,7 +172,7 @@ impl STradingPairManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::assert::trading_pair::ETradingPairType;
+    use crate::asset::trading_pair::ETradingPairType;
     use crate::data::kline::SKlineData;
     use crate::runner::strategy_runner::trading_pair::runner_trading_pair_manager::STradingPairManager;
 

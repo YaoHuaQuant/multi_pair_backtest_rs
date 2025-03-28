@@ -1,4 +1,4 @@
-use crate::assert::asset::EAssetType;
+use crate::asset::EAssetType;
 
 /// 交易对类型
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]

@@ -109,7 +109,7 @@ mod tests {
         let mut inputs = Vec::new();
         for offset in 0..DATA_NUM {
             /// 开盘时间-带本地时区的DataTime
-            let open_time = utils::date_time::normalize_to_minute(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10));
+            let open_time = utils::date_time::normalize_to_minute(&(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10)));
             /// 收盘时间
             let close_time = now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10 + 5);
             let open_price = Decimal::from(100 + offset * 10);
@@ -174,7 +174,7 @@ mod tests {
             println!("item: {:?}", &item);
             let time = item.0.clone();
             let kline = item.1;
-            let get_kline = data.get(time).unwrap();
+            let get_kline = data.get(&time).unwrap();
             println!("get_get_kline: {:?}", &get_kline);
             // 判断两个引用是否指向同一个对象
             assert_eq!(ptr::eq(kline, get_kline), true);
