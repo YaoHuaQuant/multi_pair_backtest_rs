@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use crate::asset::EAssetType;
 
 /// 资产对象
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SAssetV2 {
     /// 资产类型
     pub as_type: EAssetType,

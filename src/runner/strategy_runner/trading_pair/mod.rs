@@ -1,2 +1,2 @@
-pub mod runner_trading_pair;
-pub mod runner_trading_pair_manager;
+pub mod trading_pair;
+pub mod trading_pair_manager;

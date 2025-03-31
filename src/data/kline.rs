@@ -108,9 +108,9 @@ mod tests {
         let now = Local::now();
         let mut inputs = Vec::new();
         for offset in 0..DATA_NUM {
-            /// 开盘时间-带本地时区的DataTime
+            // 开盘时间-带本地时区的DataTime
             let open_time = utils::date_time::normalize_to_minute(&(now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10)));
-            /// 收盘时间
+            // 收盘时间
             let close_time = now - chrono::Duration::minutes(10 * DATA_NUM - offset * 10 + 5);
             let open_price = Decimal::from(100 + offset * 10);
             let close_price = Decimal::from(105 + offset * 10);

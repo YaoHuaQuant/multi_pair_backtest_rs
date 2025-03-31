@@ -1,12 +1,12 @@
 use std::cmp::Reverse;
 use std::thread;
 use chrono::{DateTime, Duration, Local};
-use log::{error, log};
+use log::{error, info, log};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
-use crate::asset::asset::{SAsset};
-use crate::asset::asset_manager::SAssetManager;
+use crate::asset::asset_manager_v2::SAssetV2Manager;
+use crate::asset::asset_v2::SAssetV2;
 use crate::asset::EAssetType;
 use crate::asset::trading_pair::ETradingPairType;
 use crate::data::db::api::data_api_db::SDataApiDb;
@@ -15,12 +15,12 @@ use crate::data::db::SDbClickhouse;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
-use crate::protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, PriceChange, SRunnerParseResult};
+use crate::protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult};
 use crate::runner::strategy_runner::back_trade_config::{config_date_from, config_date_to, INIT_BALANCE_BTC, INIT_BALANCE_USDT, MAKER_ORDER_FEE, TAKER_ORDER_FEE};
-use crate::runner::strategy_runner::order::runner_order::{EOrderUpdate, SAddOrder, SOrder};
-use crate::runner::strategy_runner::order::runner_order_manager::{EOrderManagerUpdate, ROrderManagerResult, SOrderManager, SOrderUuidAndUpdate};
-use crate::runner::strategy_runner::trading_pair::runner_trading_pair::STradingPair;
-use crate::runner::strategy_runner::trading_pair::runner_trading_pair_manager::{RTradingPairManagerResult, STradingPairManager};
+use crate::runner::strategy_runner::order::order::{EOrderUpdate, ROrderResult, SAddOrder, SOrder};
+use crate::runner::strategy_runner::order::order_manager::{ROrderManagerResult, SOrderManager};
+use crate::runner::strategy_runner::trading_pair::trading_pair::STradingPair;
+use crate::runner::strategy_runner::trading_pair::trading_pair_manager::{RTradingPairManagerResult, STradingPairManager};
 use crate::strategy::strategy_mk_test::SStrategyMkTest;
 use crate::strategy::TStrategy;
 
@@ -36,8 +36,13 @@ pub enum EBackTradeRunnerError {
 /// 回测执行器
 #[derive(Debug)]
 pub struct SBackTradeRunner<A: TDataApi, S: TStrategy> {
+    /// 数据接口
     pub data_api: A,
-    pub asset_manager: SAssetManager,
+    /// 用户资产管理器
+    pub user_asset_manager: SAssetV2Manager,
+    /// 手续费管理器
+    pub fee_asset_manager: SAssetV2Manager,
+    /// 交易对管理器
     pub trading_pair_manager: STradingPairManager,
 
     pub taker_order_fee: Decimal,
@@ -61,12 +66,17 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
 
         let db = SDbClickhouse::new();
         let data_api = SDataApiDb::new(db);
-        let mut asset_manager = SAssetManager::new();
-        // 插入资产asset配置
-        asset_manager.add_assets(vec![EAssetType::Btc, EAssetType::Usdt, EAssetType::BtcUsdCmFuture, EAssetType::BtcUsdtFuture]);
-        // 初始化资产
-        asset_manager.add(EAssetType::Btc, init_balance_btc).unwrap();
-        asset_manager.add(EAssetType::Usdt, init_balance_usdt).unwrap();
+        // 初始化资产asset配置
+        let mut user_asset_manager = SAssetV2Manager::new();
+        let mut fee_asset_manager = SAssetV2Manager::new();
+        user_asset_manager.merges(vec![
+            SAssetV2 { as_type: EAssetType::Btc, balance: init_balance_btc },
+            SAssetV2 { as_type: EAssetType::Usdt, balance: init_balance_usdt },
+        ]);
+        fee_asset_manager.merges(vec![
+            SAssetV2 { as_type: EAssetType::Btc, balance: Decimal::from(0) },
+            SAssetV2 { as_type: EAssetType::Usdt, balance: Decimal::from(0) },
+        ]);
 
         let mut trading_pair_manager = STradingPairManager::new();
         // 插入trading_pair配置 todo 插入更多配置
@@ -78,7 +88,8 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
 
         Self {
             data_api,
-            asset_manager,
+            user_asset_manager,
+            fee_asset_manager,
             trading_pair_manager,
             taker_order_fee,
             maker_order_fee,
@@ -94,13 +105,23 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         // 循环遍历k线 根据时间间隔1分钟
         let mut current_date = self.date_from;
         while current_date < self.date_to {
-            log::debug!("当前k线时间:\t{}", current_date);
+            info!("当前k线时间:\t{}", current_date);
+            // 输出用户当前资产状况
+            info!("用户可用资产:\t{:?}", self.user_asset_manager.asset_map);
+            info!("用户锁定资产:\t{:?}", self.trading_pair_manager.calculate_total_assets());
+            // 输出所有挂单
+            info!("所有挂单:");
+            for (_, trading_pair) in self.trading_pair_manager.trading_pair_map.iter() {
+                for (_, order) in trading_pair.order_manager.orders.iter() {
+                    info!("订单 {} {:?}", order.get_id(), order);
+                }
+            }
             // 在单分钟k线内遍历所有交易对
             for (tp_type, mut trading_pair) in &mut self.trading_pair_manager.trading_pair_map {
                 match Self::parse_trading_pair_kline(
                     &current_date,
                     &mut trading_pair,
-                    &mut self.asset_manager,
+                    &mut self.user_asset_manager,
                     &tp_type,
                 ) {
                     Err(e) => {
@@ -115,7 +136,7 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                         let parse_action_results = Self::action_verify_update(
                             strategy_actions,
                             &mut trading_pair,
-                            &mut self.asset_manager,
+                            &mut self.user_asset_manager,
                         );
                         // 向策略模块反馈校验、调整结果
                         self.strategy.verify(parse_action_results);
@@ -136,11 +157,11 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
     fn parse_trading_pair_kline(
         current_date: &DateTime<Local>,
         trading_pair: &mut STradingPair,
-        asset_manager: &mut SAssetManager,
+        user_asset_manager: &mut SAssetV2Manager,
         tp_type: &ETradingPairType,
     ) -> RBackTradeRunnerResult<SRunnerParseResult>
     {
-        // 根据K线 结算订单数据 结算资产数据 todo 收取手续费
+        // 根据K线 结算订单数据 结算资产数据 todo 收取手续费-手续费累计给fee_manager
         let mut order_results: Vec<ERunnerParseOrderResult> = Vec::new(); // 订单已成交列表
         let base_asset_type = trading_pair.base_currency;
         let quote_asset_type = trading_pair.quote_currency;
@@ -164,79 +185,82 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         { // debug
             let highest_buy_price = match buying_order_heap.peek() {
                 None => { None }
-                Some(order) => { Some(order.price) }
+                Some(order) => { Some(order.get_price()) }
             };
-
             let lowest_sell_price = match selling_order_heap.peek() {
                 None => { None }
-                Some(Reverse(order)) => { Some(order.price) }
+                Some(Reverse(order)) => { Some(order.get_price()) }
             };
-
             log::debug!("盘口信息 - 交易对: {:?}\t买一价格:{:?}\t卖一价格:{:?}", tp_type, highest_buy_price, lowest_sell_price);
         }
 
         // 买单结算 用quote_currency换base_current
         while let Some(order) = buying_order_heap.peek() {
             // 操作方向校验
-            if (order.action != EOrderAction::Buy) {
-                log::error!("EOrderAction Error: Expected Buy - Actually {:?}", order.action);
+            if (order.get_action() != EOrderAction::Buy) {
+                log::error!("EOrderAction Error: Expected Buy - Actually {:?}", order.get_action());
                 // return Err(EBackTradeRunnerError::OrderActionError(order.action));
             }
             // 挂单价格大于等于当前k线最低价格，则买单成交。
-            if order.price >= kline_unit_data.low_price {
-                // 校验资产
-                let quote_currency_quantity = order.price * order.quantity;
-                let base_current_quantity = order.quantity;
-                let mut quote_asset = asset_manager.get_mut(quote_asset_type).unwrap();
-                // 结算资产
-                if quote_asset.withdraw_locked(quote_currency_quantity).is_ok() {
-                    let mut base_asset = asset_manager.get_mut(base_asset_type).unwrap();
-                    base_asset.add(base_current_quantity);
-                    // 订单转移至已成交列表
-                    let order = buying_order_heap.pop().unwrap();
-                    log::info!("Buy Order Executed {:?} ", order);
-                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
-                    continue;
-                } else {
-                    // 结算失败 抛出异常
-                    log::debug!("Locked Asset {:?} not enough: {} less than {}", quote_asset.as_type, quote_asset.get_locked(), quote_currency_quantity);
-                    // return Err(EBackTradeRunnerError::AssetLockedNotEnoughError(quote_asset.as_type));
+            if order.get_price() < kline_unit_data.low_price {
+                break;
+            }
+            info!("结算买单: {:?}", order);
+            let mut order = buying_order_heap.pop().unwrap();
+            // 校验资产
+            let base_quantity = order.get_quantity();
+            let mut base_asset = user_asset_manager.get_mut(base_asset_type).unwrap();
+            // 结算资产
+            // 提取订单锁定的计价资产 生成基础资产
+            match order.execute() {
+                // _consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(_consumed_quote_asset) => {
+                    // 用户获得基础资产
+                    let obtain_base_asset = SAssetV2 {
+                        as_type: base_asset_type,
+                        balance: base_quantity,
+                    };
+                    let _ = base_asset.merge(obtain_base_asset);
+                }
+                Err(e) => {
+                    error!("{:?}", e);
                 }
             }
-            break;
         }
 
         // 卖单结算 用base_current换quote_currency
         while let Some(Reverse(order)) = selling_order_heap.peek() {
             // 操作方向校验
-            if (order.action != EOrderAction::Sell) {
-                log::error!("EOrderAction Error: Expected Sell - Actually {:?}", order.action);
+            if (order.get_action() != EOrderAction::Sell) {
+                log::error!("EOrderAction Error: Expected Sell - Actually {:?}", order.get_action());
                 // return Err(EBackTradeRunnerError::OrderActionError(order.action));
             }
-            // 挂单价格小等于当前k线最高价格，则买单成交。
-            if order.price <= kline_unit_data.high_price {
-                // 校验资产
-
-                let quote_currency_quantity = order.price * order.quantity;
-                let base_current_quantity = order.quantity;
-
-                let mut base_asset = asset_manager.get_mut(base_asset_type).unwrap();
-                // 结算资产
-                if base_asset.withdraw_locked(base_current_quantity).is_ok() {
-                    let mut quote_asset = asset_manager.get_mut(quote_asset_type).unwrap();
-                    quote_asset.add(quote_currency_quantity);
-                    // 订单转移至已成交列表
-                    let order = selling_order_heap.pop().unwrap().0;
-                    log::info!("Sell Order Executed {:?} ", order);
+            // 挂单价格大于等于当前k线最低价格，则买单成交。
+            if order.get_price() > kline_unit_data.high_price {
+                break;
+            }
+            info!("结算卖单: {:?}", order);
+            let Reverse(mut order) = selling_order_heap.pop().unwrap();
+            // 校验资产
+            let quote_quantity = order.get_amount();
+            let mut quote_asset = user_asset_manager.get_mut(quote_asset_type).unwrap();
+            // 结算资产
+            // 提取订单锁定的基础资产 生成计价资产
+            match order.execute() {
+                // _consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(_consumed_base_asset) => {
+                    // 用户获得基础资产
+                    let obtain_quote_asset = SAssetV2 {
+                        as_type: quote_asset_type,
+                        balance: quote_quantity,
+                    };
+                    let _ = quote_asset.merge(obtain_quote_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
-                    continue;
-                } else {
-                    // 结算失败 抛出异常
-                    log::debug!("Locked Asset {:?} not enough: {} less than {}", base_asset.as_type, base_asset.get_locked(), quote_currency_quantity);
-                    // return Err(EBackTradeRunnerError::AssetLockedNotEnoughError(quote_asset.as_type));
+                }
+                Err(e) => {
+                    error!("{:?}", e);
                 }
             }
-            break;
         }
 
 
@@ -255,14 +279,14 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
     fn action_verify_update(
         strategy_actions: Vec<EStrategyAction>,
         trading_pair: &mut STradingPair,
-        asset_manager: &mut SAssetManager,
+        user_asset_manager: &mut SAssetV2Manager,
     ) -> Vec<ERunnerParseActionResult>
     {
         // 根据策略行为，校验、调整订单数据。
         let mut parse_action_result: Vec<ERunnerParseActionResult> = Vec::new();
         // 根据action类型进行分类 之后进行分批批处理
         let mut add_orders: Vec<SAddOrder> = Vec::new();
-        let mut cancel_or_modify_orders: Vec<SOrderUuidAndUpdate> = Vec::new();
+        let mut cancel_orders: Vec<Uuid> = Vec::new();
 
         let mut order_manager = &mut trading_pair.order_manager;
         let base_asset_type = trading_pair.base_currency;
@@ -276,77 +300,29 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                 EStrategyAction::CancelOrder(uuid) => {
                     // 判断uuid是否有效
                     if let Some(_) = order_manager.peek_order(uuid) {
-                        cancel_or_modify_orders.push(SOrderUuidAndUpdate {
-                            uuid,
-                            update: EOrderManagerUpdate::Remove,
-                        })
-                    }
-                }
-                EStrategyAction::ModifyOrder(uuid, price_change, quantity_change) => {
-                    if price_change.is_some() && quantity_change.is_some() {
-                        let price = price_change.unwrap();
-                        let quantity = quantity_change.unwrap();
-                        cancel_or_modify_orders.push(SOrderUuidAndUpdate {
-                            uuid,
-                            update: EOrderManagerUpdate::Update(EOrderUpdate::PriceAndQuantity(price, quantity)),
-                        })
-                    } else if let Some(price) = price_change {
-                        cancel_or_modify_orders.push(SOrderUuidAndUpdate {
-                            uuid,
-                            update: EOrderManagerUpdate::Update(EOrderUpdate::Price(price)),
-                        })
-                    } else if let Some(quantity) = quantity_change {
-                        cancel_or_modify_orders.push(SOrderUuidAndUpdate {
-                            uuid,
-                            update: EOrderManagerUpdate::Update(EOrderUpdate::Quantity(quantity)),
-                        })
+                        cancel_orders.push(uuid)
                     }
                 }
             }
         }
 
-        // 优先处理取消和调整的订单（需要做堆重构）
-        match order_manager.update_or_remove_orders(cancel_or_modify_orders) {
-            Err(e) => { log::error!("Error: {:?}", e); }
-            Ok(success_list) => {
-                // 执行成功 todo 进行资产结算
-                for order_uuid_and_update in success_list {
-                    let SOrderUuidAndUpdate { uuid, update } = order_uuid_and_update;
-                    if let Some(order) = order_manager.peek_order(uuid) {
-                        match update {
-                            EOrderManagerUpdate::Update(order_update) => {
-                                // 修改订单 重新锁定&解锁资产
-                                match order_update {
-                                    EOrderUpdate::State(_) => {}
-                                    EOrderUpdate::Price(price) => {}
-                                    EOrderUpdate::Quantity(quantity) => {}
-                                    EOrderUpdate::PriceAndQuantity(price, quantity) => {}
-                                }
-
-                                parse_action_result.push(ERunnerParseActionResult::OrderModified(order.clone()));
-                            }
-                            EOrderManagerUpdate::Remove => {
-                                // 取消订单 释放锁定资产
-                                match order.action {
-                                    EOrderAction::Buy => {
-                                        // 释放定价资产
-                                        let mut quote_asset = asset_manager.get_mut(quote_asset_type).unwrap();
-                                        let necessary_quote_asset = order.price * order.quantity;
-                                        if quote_asset.unlock(necessary_quote_asset).is_ok() {
-                                            parse_action_result.push(ERunnerParseActionResult::OrderCanceled(uuid));
-                                        }
-                                    }
-                                    EOrderAction::Sell => {
-                                        // 释放基本资产
-                                        let mut base_asset = asset_manager.get_mut(base_asset_type).unwrap();
-                                        let necessary_base_asset = order.quantity;
-                                        if base_asset.unlock(necessary_base_asset).is_ok() {
-                                            parse_action_result.push(ERunnerParseActionResult::OrderCanceled(uuid));
-                                        }
-                                    }
-                                }
-                            }
+        // 优先处理取消的订单（需要做堆重构）
+        match order_manager.remove_orders(cancel_orders) {
+            Err(e) => { error!("Error: {:?}", e); }
+            Ok(removed_order_vec) => {
+                // 订单执行成功 进行资产结算
+                for mut order in removed_order_vec {
+                    info!("取消订单: {:?}", order);
+                    // 订单成功取消 释放锁定资产
+                    if let Some(asset) = order.cancel() {
+                        let mut user_asset = match order.get_action() {
+                            EOrderAction::Buy => { user_asset_manager.get_mut(quote_asset_type).unwrap() }
+                            EOrderAction::Sell => { user_asset_manager.get_mut(base_asset_type).unwrap() }
+                        };
+                        if let Err(e) = user_asset.merge(asset) {
+                            error!("Error: {:?}", e);
                         }
+                        parse_action_result.push(ERunnerParseActionResult::OrderCanceled(order));
                     }
                 }
             }
@@ -354,29 +330,31 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
 
         // 处理新增订单 资产结算
         for add_order in add_orders {
-            match add_order.action {
+            // info!("Start: add_order");
+            // info!("add_order:{:?}", add_order);
+            let mut new_order = SOrder::new(add_order.price, add_order.quantity, add_order.action);
+            let (necessary_asset_quantity, user_asset) = match add_order.action {
                 EOrderAction::Buy => {
-                    let necessary_quote_asset = add_order.price * add_order.quantity;
-                    let mut quote_asset = asset_manager.get_mut(quote_asset_type).unwrap();
-                    if quote_asset.lock(necessary_quote_asset).is_ok() {
-                        order_manager.add_order(add_order);
-                    }
+                    (add_order.price * add_order.quantity, user_asset_manager.get_mut(quote_asset_type).unwrap())
                 }
                 EOrderAction::Sell => {
-                    let necessary_base_asset = add_order.quantity;
-                    let mut base_asset = asset_manager.get_mut(base_asset_type).unwrap();
-                    if base_asset.lock(necessary_base_asset).is_ok() {
-                        order_manager.add_order(add_order);
-                    }
+                    (add_order.quantity, user_asset_manager.get_mut(base_asset_type).unwrap())
                 }
+            };
+            // info!("necessary_asset_quantity:{:?}", necessary_asset_quantity);
+            if let Ok(locked_quote_asset) = user_asset.split(necessary_asset_quantity) {
+                // info!("locked_quote_asset:{:?}", locked_quote_asset);
+                if let Err(e) = new_order.submit(locked_quote_asset) {
+                    error!("Error: {:?}", e);
+                }
+                order_manager.insert_order(new_order);
+                parse_action_result.push(ERunnerParseActionResult::OrderPlaced(new_order));
+                info!("新增订单: {:?}", new_order);
             }
+            // info!("Finish: add_order");
         }
-
         parse_action_result
     }
-
-    /// 向策略模块反馈校验、调整结果
-    fn response_verify_result(&mut self, action_result: Vec<ERunnerParseActionResult>) {}
 }
 
 

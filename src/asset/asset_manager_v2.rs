@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+
 use rust_decimal::Decimal;
-use crate::asset::asset_v2::{EAssetV2Error, RAssetV2Result, RemainBalance, RequireBalance, SAssetV2};
+
+use crate::asset::asset_v2::{EAssetV2Error, RemainBalance, RequireBalance, SAssetV2};
 use crate::asset::EAssetType;
 
 pub type RAssetManagerV2Result<T> = Result<T, EAssetManagerV2Error>;
@@ -36,12 +38,17 @@ impl SAssetV2Manager {
     }
 
     pub fn add_asset(&mut self, as_type: EAssetType) {
-        self.asset_map.entry(as_type).or_insert(SAssetV2::new(as_type));
+        self.asset_map
+            .entry(as_type)
+            .or_insert(SAssetV2 {
+                as_type,
+                balance: Decimal::from(0),
+            });
     }
 
-    pub fn add_assets(&mut self, as_types: Vec<EAssetType>) {
-        for as_type in as_types {
-            self.add_asset(as_type)
+    pub fn add_assets(&mut self, as_type_list: Vec<EAssetType>) {
+        for asset in as_type_list {
+            self.add_asset(asset)
         }
     }
 
@@ -59,15 +66,20 @@ impl SAssetV2Manager {
         }
     }
 
-    pub fn merge(&mut self, other: SAssetV2) -> RAssetManagerV2Result<()> {
+    pub fn merge(&mut self, other: SAssetV2) {
         let as_type = other.as_type;
         // 如果当前type不存在 则新增
         if let Err(EAssetManagerV2Error::AssetNotFoundError(as_type)) = self.get_mut(as_type) {
-            self.add_asset(as_type);
+            self.add_asset(as_type)
         }
-        let asset = self.get_mut(as_type)?;
-        asset.merge(other)?;
-        Ok(())
+        let asset = self.get_mut(as_type).unwrap();
+        asset.merge(other).unwrap();
+    }
+
+    pub fn merges(&mut self, other_vec: Vec<SAssetV2>) {
+        for other in other_vec {
+            self.merge(other)
+        }
     }
 
     /// 拆分出一部分新资产
@@ -80,6 +92,7 @@ impl SAssetV2Manager {
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
+
     use crate::asset::asset_manager_v2::{EAssetManagerV2Error, SAssetV2Manager};
     use crate::asset::asset_v2::SAssetV2;
     use crate::asset::EAssetType;
@@ -117,8 +130,7 @@ mod tests {
             as_type: EAssetType::Btc,
             balance: Decimal::from(10),
         };
-        let r = manager.merge(asset2);
-        assert!(r.is_ok());
+        manager.merge(asset2);
         let mut asset1 = manager.get(EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(10));
 
@@ -128,8 +140,7 @@ mod tests {
             as_type: EAssetType::Usdt,
             balance: Decimal::from(100),
         };
-        let r = manager.merge(asset3);
-        assert!(r.is_ok());
+        manager.merge(asset3);
         let asset4 = manager.get(EAssetType::Usdt).unwrap();
         assert_eq!(asset4.balance, Decimal::from(100));
         assert_eq!(asset4.as_type, EAssetType::Usdt);
@@ -147,8 +158,7 @@ mod tests {
             as_type: EAssetType::Btc,
             balance: Decimal::from(10),
         };
-        let r = manager.merge(asset2);
-        assert!(r.is_ok());
+        manager.merge(asset2);
         let mut asset1 = manager.get(EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(10));
 

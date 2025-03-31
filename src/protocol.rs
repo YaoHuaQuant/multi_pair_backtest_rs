@@ -3,9 +3,10 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 /** runner与strategy的交互逻辑*/
 use crate::data::kline::SKlineUnitData;
-use crate::runner::strategy_runner::order::runner_order::{SAddOrder, SOrder};
+use crate::runner::strategy_runner::order::order::{SAddOrder, SOrder};
 
 /// Runner处理结果-订单部分
+#[derive(Debug)]
 pub enum ERunnerParseOrderResult {
     // 订单已完成
     OrderExecuted(SOrder),
@@ -20,23 +21,23 @@ pub struct SRunnerParseResult {
     pub order_result: Vec<ERunnerParseOrderResult>,
 }
 
-pub type PriceChange = Option<Decimal>;
-pub type QuantityChange = Option<Decimal>;
+// pub type PriceChange = Option<Decimal>;
+// pub type QuantityChange = Option<Decimal>;
 
 /// 策略行为
 pub enum EStrategyAction {
     NewOrder(SAddOrder),
     CancelOrder(Uuid),
-    ModifyOrder(Uuid, PriceChange, QuantityChange),
+    // ModifyOrder(Uuid, PriceChange, QuantityChange),
 }
 
 /// Runner处理结果-策略行为校验结果
 #[derive(Debug)]
 pub enum ERunnerParseActionResult {
     // 已完成挂单
-    OrderPlaced(Uuid),
+    OrderPlaced(SOrder),
     //  已完成撤单
-    OrderCanceled(Uuid),
+    OrderCanceled(SOrder),
     //  已完成改单
-    OrderModified(SOrder),
+    // OrderModified(SOrder),
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use uuid::Uuid;
@@ -7,8 +8,8 @@ use crate::asset::trading_pair::ETradingPairType;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::order::runner_order::{SAddOrder, SOrder};
-use crate::runner::strategy_runner::order::runner_order_manager::{EOrderManagerError, SOrderManager, SOrderUuidAndUpdate};
+use crate::runner::strategy_runner::order::order::{SAddOrder, SOrder};
+use crate::runner::strategy_runner::order::order_manager::{EOrderManagerError, ROrderManagerResult, SOrderManager};
 
 /// 交易对
 #[derive(Debug)]
@@ -37,7 +38,7 @@ impl STradingPair {
     }
 
     // region ----- 转发SOrderManager函数 -----
-    pub fn add_order(&mut self, price: Decimal, quantity: Decimal, action: EOrderAction) -> Uuid {
+    pub fn add_order(&mut self, price: Decimal, quantity: Decimal, action: EOrderAction) -> ROrderManagerResult<Uuid> {
         self.order_manager.add_order(SAddOrder { price, quantity, action })
     }
 
@@ -45,8 +46,8 @@ impl STradingPair {
         self.order_manager.peek_order(uuid)
     }
 
-    pub fn update_or_remove_orders(&mut self, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> Result<Vec<SOrderUuidAndUpdate>, EOrderManagerError> {
-        self.order_manager.update_or_remove_orders(uuid_update_list)
+    pub fn remove_orders(&mut self, uuid_list: Vec<Uuid>) -> Result<Vec<SOrder>, EOrderManagerError> {
+        self.order_manager.remove_orders(uuid_list)
     }
 
     pub fn peek_highest_buy_order(&self) -> Option<&SOrder> {
@@ -63,6 +64,10 @@ impl STradingPair {
 
     pub fn pop_lowest_sell_order(&mut self) -> Option<SOrder> {
         self.order_manager.pop_lowest_sell_order()
+    }
+
+    pub fn calculate_total_assets(&self) -> HashMap<EAssetType, Decimal> {
+        self.order_manager.calculate_total_assets()
     }
     // endregion ----- 转发SOrderManager函数-----
 

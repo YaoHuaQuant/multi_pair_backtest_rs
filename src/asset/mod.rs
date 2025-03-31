@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use rust_decimal::Decimal;
+
 pub mod asset;
 pub mod trading_pair;
 pub mod asset_manager;

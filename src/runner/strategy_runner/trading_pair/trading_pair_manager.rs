@@ -4,13 +4,14 @@ use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
+use crate::asset::EAssetType;
 use crate::asset::trading_pair::ETradingPairType;
 use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
-use crate::runner::strategy_runner::order::runner_order::SOrder;
-use crate::runner::strategy_runner::order::runner_order_manager::{ROrderManagerResult, SOrderUuidAndUpdate};
-use crate::runner::strategy_runner::trading_pair::runner_trading_pair::STradingPair;
+use crate::runner::strategy_runner::order::order::SOrder;
+use crate::runner::strategy_runner::order::order_manager::ROrderManagerResult;
+use crate::runner::strategy_runner::trading_pair::trading_pair::STradingPair;
 
 pub type RTradingPairManagerResult<T> = Result<T, ETradingPairManagerError>;
 
@@ -52,15 +53,28 @@ impl STradingPairManager {
         }
     }
 
+    /// 统计每种资产的总锁定量
+    pub fn calculate_total_assets(&self) -> HashMap<EAssetType, Decimal> {
+        let mut result = HashMap::new();
+        for (_, trading_pair) in self.trading_pair_map.iter() {
+            let map = trading_pair.calculate_total_assets();
+            for (as_type, balance) in map.iter() {
+                let ptr = result.entry(*as_type).or_insert(Decimal::from(0));
+                *ptr += balance;
+            }
+        }
+        result
+    }
+
 
     /// 获取第一个日期
     pub fn get_first_date(&self) -> Option<&DateTime<Local>> {
-        let mut max_value :Option<&DateTime<Local>> = None;
+        let mut max_value: Option<&DateTime<Local>> = None;
         for item in self.trading_pair_map.iter() {
             // 检查k线
-            if let Some((date, _)) =  item.1.kline_data.data.first_key_value() {
+            if let Some((date, _)) = item.1.kline_data.data.first_key_value() {
                 match max_value {
-                    None => {max_value = Some(date)}
+                    None => { max_value = Some(date) }
                     Some(max) => {
                         if max > date {
                             max_value = Some(date)
@@ -75,12 +89,12 @@ impl STradingPairManager {
 
     /// 获取最后一个日期
     pub fn get_last_date(&self) -> Option<&DateTime<Local>> {
-        let mut min_value:Option<&DateTime<Local>> = None;
+        let mut min_value: Option<&DateTime<Local>> = None;
         for item in self.trading_pair_map.iter() {
             // 检查k线
-            if let Some((date, _)) =  item.1.kline_data.data.first_key_value() {
+            if let Some((date, _)) = item.1.kline_data.data.first_key_value() {
                 match min_value {
-                    None => { min_value = Some(date)}
+                    None => { min_value = Some(date) }
                     Some(min) => {
                         if min < date {
                             min_value = Some(date)
@@ -94,7 +108,7 @@ impl STradingPairManager {
     }
 
     // region ----- 转发STradingPair函数-----
-    pub fn add_order(&mut self, tp_type: ETradingPairType, price: Decimal, quantity: Decimal, action: EOrderAction) -> RTradingPairManagerResult<Uuid> {
+    pub fn add_order(&mut self, tp_type: ETradingPairType, price: Decimal, quantity: Decimal, action: EOrderAction) -> RTradingPairManagerResult<ROrderManagerResult<Uuid>> {
         Ok(self.get_mut(tp_type)?.add_order(price, quantity, action))
     }
 
@@ -102,8 +116,8 @@ impl STradingPairManager {
         Ok(self.get(tp_type)?.peek_order(uuid))
     }
 
-    pub fn update_or_remove_orders(&mut self, tp_type: ETradingPairType, uuid_update_list: Vec<SOrderUuidAndUpdate>) -> RTradingPairManagerResult<ROrderManagerResult<Vec<SOrderUuidAndUpdate>>> {
-        Ok(self.get_mut(tp_type)?.update_or_remove_orders(uuid_update_list))
+    pub fn remove_orders(&mut self, tp_type: ETradingPairType, uuid_list: Vec<Uuid>) -> RTradingPairManagerResult<ROrderManagerResult<Vec<SOrder>>> {
+        Ok(self.get_mut(tp_type)?.remove_orders(uuid_list))
     }
 
     pub fn peek_highest_buy_order(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<Option<&SOrder>> {
@@ -120,6 +134,10 @@ impl STradingPairManager {
 
     pub fn pop_lowest_sell_order(&mut self, tp_type: ETradingPairType) -> RTradingPairManagerResult<Option<SOrder>> {
         Ok(self.get_mut(tp_type)?.pop_lowest_sell_order())
+    }
+
+    pub fn calculate_trading_pair_assets(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<HashMap<EAssetType, Decimal>> {
+        Ok(self.get(tp_type)?.calculate_total_assets())
     }
 
     pub fn insert_funding_rate(&mut self, tp_type: ETradingPairType, time: &DateTime<Local>, funding_rate: Decimal) -> RTradingPairManagerResult<()> {
@@ -174,7 +192,7 @@ impl STradingPairManager {
 mod tests {
     use crate::asset::trading_pair::ETradingPairType;
     use crate::data::kline::SKlineData;
-    use crate::runner::strategy_runner::trading_pair::runner_trading_pair_manager::STradingPairManager;
+    use crate::runner::strategy_runner::trading_pair::trading_pair_manager::STradingPairManager;
 
     #[test]
     pub fn test_add_pair() {
@@ -185,5 +203,66 @@ mod tests {
 
         data.add_trading_pair(ETradingPairType::BtcUsdt, SKlineData::new(), None);
         dbg!(&data);
+    }
+
+    #[test]
+    pub fn test_calculate_total_assets() {
+        // todo
+
+        // let mut manager = SOrderManager::new();
+        //
+        // let price_vec_buy = vec![
+        //     Decimal::from_str("1").unwrap(),
+        //     Decimal::from_str("1").unwrap(),
+        //     Decimal::from_str("2").unwrap(),
+        //     Decimal::from_str("3").unwrap(),
+        //     Decimal::from_str("5").unwrap(),
+        // ];
+        //
+        // for price in price_vec_buy {
+        //     let id = manager.add_order(SAddOrder {
+        //         action: EOrderAction::Buy,
+        //         price,
+        //         quantity: Decimal::from_str("1").unwrap(),
+        //     });
+        //     let mut order = manager.orders.get_mut(&id).unwrap();
+        //     let asset = SAssetV2 {
+        //         as_type: EAssetType::Usdt,
+        //         balance: Decimal::from(price),
+        //     };
+        //     let r = order.submit(asset);
+        // }
+        //
+        // let price_vec_sell = vec![
+        //     Decimal::from_str("1").unwrap(),
+        //     Decimal::from_str("1").unwrap(),
+        //     Decimal::from_str("1").unwrap(),
+        //     Decimal::from_str("1").unwrap(),
+        //     Decimal::from_str("1").unwrap(),
+        // ];
+        //
+        // for price in price_vec_sell {
+        //     let id = manager.add_order(SAddOrder {
+        //         action: EOrderAction::Sell,
+        //         price,
+        //         quantity: Decimal::from_str("1").unwrap(),
+        //     });
+        //     let mut order = manager.orders.get_mut(&id).unwrap();
+        //     let asset = SAssetV2 {
+        //         as_type: EAssetType::Btc,
+        //         balance: Decimal::from(price),
+        //     };
+        //     let r = order.submit(asset);
+        // }
+        //
+        // let r = manager.calculate_total_assets();
+        // println!("result:{:?}", r);
+        // let usdt = r.get(&EAssetType::Usdt);
+        // assert!(usdt.is_some());
+        // assert_eq!(*usdt.unwrap(), Decimal::from(12));
+        //
+        // let btc = r.get(&EAssetType::Btc);
+        // assert!(btc.is_some());
+        // assert_eq!(*btc.unwrap(), Decimal::from(5));
     }
 }

@@ -1,4 +1,4 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.6.4 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" modified="2025-03-31T06:44:39.536Z" etag="HEfkb084Pp8K-XF-Hskd" version="24.6.4" type="device">
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.6.4 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" modified="2025-03-31T07:40:06.081Z" etag="Dof7ndE-CjiXknZ7nEpt" version="24.6.4" type="device">
   <diagram name="第 1 页" id="F4dAkYMisPp_Crrg1WQa">
     <mxGraphModel dx="3689" dy="1195" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -264,7 +264,7 @@
         <mxCell id="F7tQ2r_eFeR0tLp06QVQ-729" value="+ peek_order(Uuid): Option&amp;lt;&amp;amp;SOrder&amp;gt; - 判断某个order是否存在 若存在则返回其引用" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="F7tQ2r_eFeR0tLp06QVQ-191">
           <mxGeometry y="172" width="479.75" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="F7tQ2r_eFeR0tLp06QVQ-698" value="+ update_order(Uuid, EOrderUpdate): Result&amp;lt;(), EOrderManagerError&amp;gt; - （非pub）更新单个订单 不做堆重构" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="F7tQ2r_eFeR0tLp06QVQ-191">
+        <mxCell id="F7tQ2r_eFeR0tLp06QVQ-698" value="+ update_order(Uuid, EOrderUpdate): Result&amp;lt;(), EOrderManagerError&amp;gt; - （非pub）更新单个订单 不做堆重构" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;fontColor=#FF3333;" vertex="1" parent="F7tQ2r_eFeR0tLp06QVQ-191">
           <mxGeometry y="192" width="479.75" height="35" as="geometry" />
         </mxCell>
         <mxCell id="F7tQ2r_eFeR0tLp06QVQ-762" value="+ remove_order(Uuid): Option&amp;lt;SOrder&amp;gt; - （非pub）删除订单&amp;nbsp;不做堆重构" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="F7tQ2r_eFeR0tLp06QVQ-191">
