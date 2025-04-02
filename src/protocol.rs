@@ -14,6 +14,7 @@ pub enum ERunnerParseOrderResult {
 
 /// Runner Parse结果
 /// 用于反馈给strategy
+#[derive(Debug)]
 pub struct SRunnerParseResult {
     pub date_time: DateTime<Local>,
     pub new_kline: SKlineUnitData,
@@ -25,6 +26,7 @@ pub struct SRunnerParseResult {
 // pub type QuantityChange = Option<Decimal>;
 
 /// 策略行为
+#[derive(Debug)]
 pub enum EStrategyAction {
     NewOrder(SAddOrder),
     CancelOrder(Uuid),

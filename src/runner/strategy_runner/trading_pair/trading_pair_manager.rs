@@ -10,7 +10,7 @@ use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
 use crate::runner::strategy_runner::order::order::SOrder;
-use crate::runner::strategy_runner::order::order_manager::ROrderManagerResult;
+use crate::runner::strategy_runner::order::order_manager_v2::ROrderManagerV2Result;
 use crate::runner::strategy_runner::trading_pair::trading_pair::STradingPair;
 
 pub type RTradingPairManagerResult<T> = Result<T, ETradingPairManagerError>;
@@ -108,7 +108,7 @@ impl STradingPairManager {
     }
 
     // region ----- 转发STradingPair函数-----
-    pub fn add_order(&mut self, tp_type: ETradingPairType, price: Decimal, quantity: Decimal, action: EOrderAction) -> RTradingPairManagerResult<ROrderManagerResult<Uuid>> {
+    pub fn add_order(&mut self, tp_type: ETradingPairType, price: Decimal, quantity: Decimal, action: EOrderAction) -> RTradingPairManagerResult<ROrderManagerV2Result<Uuid>> {
         Ok(self.get_mut(tp_type)?.add_order(price, quantity, action))
     }
 
@@ -116,23 +116,23 @@ impl STradingPairManager {
         Ok(self.get(tp_type)?.peek_order(uuid))
     }
 
-    pub fn remove_orders(&mut self, tp_type: ETradingPairType, uuid_list: Vec<Uuid>) -> RTradingPairManagerResult<ROrderManagerResult<Vec<SOrder>>> {
+    pub fn remove_orders(&mut self, tp_type: ETradingPairType, uuid_list: Vec<Uuid>) -> RTradingPairManagerResult<ROrderManagerV2Result<Vec<SOrder>>> {
         Ok(self.get_mut(tp_type)?.remove_orders(uuid_list))
     }
 
-    pub fn peek_highest_buy_order(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<Option<&SOrder>> {
+    pub fn peek_highest_buy_order(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<ROrderManagerV2Result<Option<&SOrder>>> {
         Ok(self.get(tp_type)?.peek_highest_buy_order())
     }
 
-    pub fn pop_highest_buy_order(&mut self, tp_type: ETradingPairType) -> RTradingPairManagerResult<Option<SOrder>> {
+    pub fn pop_highest_buy_order(&mut self, tp_type: ETradingPairType) -> RTradingPairManagerResult<ROrderManagerV2Result<Option<SOrder>>> {
         Ok(self.get_mut(tp_type)?.pop_highest_buy_order())
     }
 
-    pub fn peek_lowest_sell_order(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<Option<&SOrder>> {
+    pub fn peek_lowest_sell_order(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<ROrderManagerV2Result<Option<&SOrder>>> {
         Ok(self.get(tp_type)?.peek_lowest_sell_order())
     }
 
-    pub fn pop_lowest_sell_order(&mut self, tp_type: ETradingPairType) -> RTradingPairManagerResult<Option<SOrder>> {
+    pub fn pop_lowest_sell_order(&mut self, tp_type: ETradingPairType) -> RTradingPairManagerResult<ROrderManagerV2Result<Option<SOrder>>> {
         Ok(self.get_mut(tp_type)?.pop_lowest_sell_order())
     }
 

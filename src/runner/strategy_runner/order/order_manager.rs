@@ -88,16 +88,20 @@ impl SOrderManager {
         let price = add_order.price;
         let quantity = add_order.quantity;
         let order = SOrder::new(price, quantity, action);
+        let id = order.get_id();
         self.insert_order(order)?;
-        Ok(order.get_id())
+        Ok(id)
     }
 
     /// 直接插入一个Order对象
     pub fn insert_order(&mut self, order: SOrder) -> ROrderManagerResult<()> {
+        let action = order.get_action();
+        let id = order.get_id();
         match self.orders.insert(order.get_id(), order) {
             None => {
                 // 插入成功的场景
-                match order.get_action() {
+                let order = self.orders.get(&id).unwrap().clone();
+                match action {
                     EOrderAction::Buy => {
                         self.buying_order_heap.push(order);
                     }
@@ -301,7 +305,7 @@ impl SOrderManager {
     pub fn calculate_total_assets(&self) -> HashMap<EAssetType, Decimal> {
         let mut result = HashMap::new();
         for (_, order) in self.orders.iter() {
-            if let Some(asset) = order.get_asset() {
+            if let Some(asset) = order.get_locked_asset() {
                 let balance = result.entry(asset.as_type).or_insert(Decimal::from(0));
                 *balance += asset.balance;
             }
@@ -508,7 +512,7 @@ mod tests {
         assert_eq!(*usdt.unwrap(), Decimal::from(12));
 
         let r2 = manager.pop_highest_buy_order().unwrap();
-        assert_eq!(r2.get_asset().unwrap().balance, Decimal::from_str("5").unwrap());
+        assert_eq!(r2.get_locked_asset().clone().unwrap().balance, Decimal::from_str("5").unwrap());
         assert_eq!(*r1.get(&EAssetType::Usdt).unwrap(), Decimal::from(7));
     }
 }

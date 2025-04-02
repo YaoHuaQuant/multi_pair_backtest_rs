@@ -1,28 +1,52 @@
-use std::cmp::Reverse;
-use std::thread;
+use std::{
+    cmp::Reverse,
+    thread,
+};
 use chrono::{DateTime, Duration, Local};
 use log::{error, info, log};
-use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::{
+    Decimal,
+    prelude::FromPrimitive,
+};
 use uuid::Uuid;
-use crate::asset::asset_manager_v2::SAssetV2Manager;
-use crate::asset::asset_v2::SAssetV2;
-use crate::asset::EAssetType;
-use crate::asset::trading_pair::ETradingPairType;
-use crate::data::db::api::data_api_db::SDataApiDb;
-use crate::data::db::api::TDataApi;
-use crate::data::db::SDbClickhouse;
-use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
-use crate::data::kline::{SKlineData, SKlineUnitData};
-use crate::order::EOrderAction;
-use crate::protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult};
-use crate::runner::strategy_runner::back_trade_config::{config_date_from, config_date_to, INIT_BALANCE_BTC, INIT_BALANCE_USDT, MAKER_ORDER_FEE, TAKER_ORDER_FEE};
-use crate::runner::strategy_runner::order::order::{EOrderUpdate, ROrderResult, SAddOrder, SOrder};
-use crate::runner::strategy_runner::order::order_manager::{ROrderManagerResult, SOrderManager};
-use crate::runner::strategy_runner::trading_pair::trading_pair::STradingPair;
-use crate::runner::strategy_runner::trading_pair::trading_pair_manager::{RTradingPairManagerResult, STradingPairManager};
-use crate::strategy::strategy_mk_test::SStrategyMkTest;
-use crate::strategy::TStrategy;
+use crate::{
+    asset::{
+        asset_manager_v2::SAssetV2Manager,
+        asset_v2::SAssetV2,
+        EAssetType,
+        trading_pair::ETradingPairType,
+    },
+    data::{
+        db::{
+            api::{
+                data_api_db::SDataApiDb,
+                TDataApi,
+            },
+            SDbClickhouse,
+        },
+        funding_rate::{SFundingRateData, SFundingRateUnitData},
+        kline::{SKlineData, SKlineUnitData},
+    },
+    order::EOrderAction,
+    protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult},
+    runner::{
+        strategy_runner::{
+            back_trade_config::{config_date_from, config_date_to, INIT_BALANCE_BTC, INIT_BALANCE_USDT, MAKER_ORDER_FEE, TAKER_ORDER_FEE},
+            order::{
+                order::{EOrderUpdate, ROrderResult, SAddOrder, SOrder},
+                order_manager_v2::{ROrderManagerV2Result, SOrderManagerV2},
+            },
+            trading_pair::{
+                trading_pair::STradingPair,
+                trading_pair_manager::{RTradingPairManagerResult, STradingPairManager},
+            },
+        }
+    },
+    strategy::{
+        strategy_mk_test::SStrategyMkTest,
+        TStrategy,
+    },
+};
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
 
@@ -38,17 +62,13 @@ pub enum EBackTradeRunnerError {
 pub struct SBackTradeRunner<A: TDataApi, S: TStrategy> {
     /// 数据接口
     pub data_api: A,
-    /// 用户资产管理器
-    pub user_asset_manager: SAssetV2Manager,
-    /// 手续费管理器
-    pub fee_asset_manager: SAssetV2Manager,
+    /// 用户可用资产管理器
+    pub user_available_asset_manager: SAssetV2Manager,
     /// 交易对管理器
     pub trading_pair_manager: STradingPairManager,
 
     pub taker_order_fee: Decimal,
     pub maker_order_fee: Decimal,
-    pub init_balance_usdt: Decimal,
-    pub init_balance_btc: Decimal,
     pub date_from: DateTime<Local>,
     pub date_to: DateTime<Local>,
 
@@ -84,17 +104,14 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         let funding_rate: Option<SFundingRateData> = None; // todo 插入资金费率
         trading_pair_manager.add_trading_pair(ETradingPairType::BtcUsdt, kline, funding_rate);
 
-        let strategy = SStrategyMkTest {};
+        let strategy = SStrategyMkTest::new();
 
         Self {
             data_api,
-            user_asset_manager,
-            fee_asset_manager,
+            user_available_asset_manager: user_asset_manager,
             trading_pair_manager,
             taker_order_fee,
             maker_order_fee,
-            init_balance_usdt,
-            init_balance_btc,
             date_from,
             date_to,
             strategy,
@@ -107,13 +124,13 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         while current_date < self.date_to {
             info!("当前k线时间:\t{}", current_date);
             // 输出用户当前资产状况
-            info!("用户可用资产:\t{:?}", self.user_asset_manager.asset_map);
+            info!("用户可用资产:\t{:?}", self.user_available_asset_manager.asset_map);
             info!("用户锁定资产:\t{:?}", self.trading_pair_manager.calculate_total_assets());
             // 输出所有挂单
             info!("所有挂单:");
             for (_, trading_pair) in self.trading_pair_manager.trading_pair_map.iter() {
                 for (_, order) in trading_pair.order_manager.orders.iter() {
-                    info!("订单 {} {:?}", order.get_id(), order);
+                    info!("订单 {:?}", order);
                 }
             }
             // 在单分钟k线内遍历所有交易对
@@ -121,7 +138,8 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                 match Self::parse_trading_pair_kline(
                     &current_date,
                     &mut trading_pair,
-                    &mut self.user_asset_manager,
+                    &mut self.user_available_asset_manager,
+                    &self.maker_order_fee,
                     &tp_type,
                 ) {
                     Err(e) => {
@@ -130,13 +148,18 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                     Ok(runner_parse_result) => {
                         // 将增量数据传输给策略模块，获取策略行为。
                         // 将策略行为进行排序 cancel order在前 new order在后
+                        info!("runner_parse_result.order_result: {:?}", runner_parse_result.order_result);
                         let strategy_actions = self.strategy.run(runner_parse_result);
+                        info!("strategy_actions:");
+                        for action in strategy_actions.iter() {
+                            info!("action: {:?}", action);
+                        }
 
                         // 根据策略行为，调整订单数据。
                         let parse_action_results = Self::action_verify_update(
                             strategy_actions,
                             &mut trading_pair,
-                            &mut self.user_asset_manager,
+                            &mut self.user_available_asset_manager,
                         );
                         // 向策略模块反馈校验、调整结果
                         self.strategy.verify(parse_action_results);
@@ -158,6 +181,7 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         current_date: &DateTime<Local>,
         trading_pair: &mut STradingPair,
         user_asset_manager: &mut SAssetV2Manager,
+        maker_order_fee: &Decimal,
         tp_type: &ETradingPairType,
     ) -> RBackTradeRunnerResult<SRunnerParseResult>
     {
@@ -180,22 +204,20 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
 
         let mut order_manager = &mut trading_pair.order_manager;
 
-        let mut buying_order_heap = &mut order_manager.buying_order_heap;
-        let mut selling_order_heap = &mut order_manager.selling_order_heap;
         { // debug
-            let highest_buy_price = match buying_order_heap.peek() {
+            let highest_buy_price = match order_manager.peek_highest_buy_order().unwrap() {
                 None => { None }
                 Some(order) => { Some(order.get_price()) }
             };
-            let lowest_sell_price = match selling_order_heap.peek() {
+            let lowest_sell_price = match order_manager.peek_lowest_sell_order().unwrap() {
                 None => { None }
-                Some(Reverse(order)) => { Some(order.get_price()) }
+                Some(order) => { Some(order.get_price()) }
             };
             log::debug!("盘口信息 - 交易对: {:?}\t买一价格:{:?}\t卖一价格:{:?}", tp_type, highest_buy_price, lowest_sell_price);
         }
 
         // 买单结算 用quote_currency换base_current
-        while let Some(order) = buying_order_heap.peek() {
+        while let Some(order) = order_manager.peek_highest_buy_order().unwrap() {
             // 操作方向校验
             if (order.get_action() != EOrderAction::Buy) {
                 log::error!("EOrderAction Error: Expected Buy - Actually {:?}", order.get_action());
@@ -205,22 +227,29 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
             if order.get_price() < kline_unit_data.low_price {
                 break;
             }
-            info!("结算买单: {:?}", order);
-            let mut order = buying_order_heap.pop().unwrap();
-            // 校验资产
+            let mut order = order_manager.pop_highest_buy_order().unwrap().unwrap();
             let base_quantity = order.get_quantity();
-            let mut base_asset = user_asset_manager.get_mut(base_asset_type).unwrap();
+            let quote_quantity = order.get_amount();
+            // 计算手续费(计价资产)
+            let fee_quote_asset = SAssetV2 {
+                as_type: quote_asset_type,
+                balance: quote_quantity * maker_order_fee,
+            };
             // 结算资产
             // 提取订单锁定的计价资产 生成基础资产
-            match order.execute() {
-                // _consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
-                Ok(_consumed_quote_asset) => {
+            match order.execute(Some(fee_quote_asset.clone())) {
+                // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(consumed_quote_asset) => {
                     // 用户获得基础资产
                     let obtain_base_asset = SAssetV2 {
                         as_type: base_asset_type,
-                        balance: base_quantity,
+                        balance: base_quantity - base_quantity * maker_order_fee,
                     };
-                    let _ = base_asset.merge(obtain_base_asset);
+
+                    info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &consumed_quote_asset);
+
+                    user_asset_manager.merge(obtain_base_asset);
+                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
                 }
                 Err(e) => {
                     error!("{:?}", e);
@@ -229,7 +258,7 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
         }
 
         // 卖单结算 用base_current换quote_currency
-        while let Some(Reverse(order)) = selling_order_heap.peek() {
+        while let Some(order) = order_manager.peek_lowest_sell_order().unwrap() {
             // 操作方向校验
             if (order.get_action() != EOrderAction::Sell) {
                 log::error!("EOrderAction Error: Expected Sell - Actually {:?}", order.get_action());
@@ -239,22 +268,28 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
             if order.get_price() > kline_unit_data.high_price {
                 break;
             }
-            info!("结算卖单: {:?}", order);
-            let Reverse(mut order) = selling_order_heap.pop().unwrap();
-            // 校验资产
+            let mut order = order_manager.pop_lowest_sell_order().unwrap().unwrap();
+            let base_quantity = order.get_quantity();
+            // 计算手续费(基础资产)
+            let fee_base_asset = SAssetV2 {
+                as_type: base_asset_type,
+                balance: base_quantity * maker_order_fee,
+            };
             let quote_quantity = order.get_amount();
-            let mut quote_asset = user_asset_manager.get_mut(quote_asset_type).unwrap();
             // 结算资产
             // 提取订单锁定的基础资产 生成计价资产
-            match order.execute() {
-                // _consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
-                Ok(_consumed_base_asset) => {
-                    // 用户获得基础资产
+            match order.execute(Some(fee_base_asset.clone())) {
+                // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(consumed_base_asset) => {
+                    // 用户获得计价资产
                     let obtain_quote_asset = SAssetV2 {
                         as_type: quote_asset_type,
-                        balance: quote_quantity,
+                        balance: quote_quantity - quote_quantity * maker_order_fee,
                     };
-                    let _ = quote_asset.merge(obtain_quote_asset);
+
+                    info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &consumed_base_asset);
+
+                    user_asset_manager.merge(obtain_quote_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
                 }
                 Err(e) => {
@@ -299,8 +334,10 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                 }
                 EStrategyAction::CancelOrder(uuid) => {
                     // 判断uuid是否有效
-                    if let Some(_) = order_manager.peek_order(uuid) {
+                    if let Some(_) = order_manager.peek_order(&uuid) {
                         cancel_orders.push(uuid)
+                    } else {
+                        info!("Cancel Fail! : {:?}", uuid);
                     }
                 }
             }
@@ -347,9 +384,11 @@ impl SBackTradeRunner<SDataApiDb, SStrategyMkTest> {
                 if let Err(e) = new_order.submit(locked_quote_asset) {
                     error!("Error: {:?}", e);
                 }
-                order_manager.insert_order(new_order);
+                info!("新增订单: {:?}", &new_order);
+                if let Err(e) = order_manager.insert_order(new_order.clone()) {
+                    error!("Error: {:?}", e);
+                }
                 parse_action_result.push(ERunnerParseActionResult::OrderPlaced(new_order));
-                info!("新增订单: {:?}", new_order);
             }
             // info!("Finish: add_order");
         }

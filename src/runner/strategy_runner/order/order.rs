@@ -35,17 +35,19 @@ pub type ActualState = EOrderState;
 /// 订单管理器异常
 #[derive(Debug)]
 pub enum EOrderError {
-    // 状态校验错误
+    /// 状态校验错误
     StateVerificationError(ExpectedState, ActualState),
-    // 提供的Asset的资产量小于所需的资产量 将资产返回
-    AssetQuantityNotEnough(EAssetType, RequiredQuantityDecimal, QuantityDecimal, SAssetV2),
-    // 未锁定Asset
-    AssetNotExist,
+    /// 提供的Asset的资产量小于所需的资产量 将资产返回
+    AssetQuantityNotEnoughError(EAssetType, RequiredQuantityDecimal, QuantityDecimal, SAssetV2),
+    /// 未锁定Asset
+    LockedAssetNotExistError(SOrder),
+    /// 成交了一个已存在fee asset的订单
+    ExecuteOrderWithFeeAssetError(SOrder),
 }
 
 
 /// 订单更新
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum EOrderUpdate {
     Price(Decimal),
     Quantity(Decimal),
@@ -53,7 +55,7 @@ pub enum EOrderUpdate {
 }
 
 /// 策略执行器订单
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SOrder {
     id: Uuid,
     /// 订单状态
@@ -66,8 +68,10 @@ pub struct SOrder {
     quantity: Decimal,
     /// 挂单金额（计价资产）
     amount: Decimal,
-    /// 资产对象（表示锁定的资产 买单锁定计价资产 卖单锁定基础资产）
-    asset: Option<SAssetV2>,
+    /// 锁定的资产对象（买单锁定计价资产 卖单锁定基础资产）
+    locked_asset: Option<SAssetV2>,
+    /// 已支付的fee资产对象（只有Executed状态的Order能够持有此对象）
+    paid_fee_asset: Option<SAssetV2>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -94,7 +98,8 @@ impl SOrder {
             price,
             quantity,
             amount: price * quantity,
-            asset: None,
+            locked_asset: None,
+            paid_fee_asset: None,
         }
     }
 
@@ -145,25 +150,42 @@ impl SOrder {
             EOrderAction::Sell => { asset.balance < self.quantity }
         } {
             // 资产不足
-            Err(EOrderError::AssetQuantityNotEnough(asset.as_type, self.amount, asset.balance, asset))
+            Err(EOrderError::AssetQuantityNotEnoughError(asset.as_type, self.amount, asset.balance, asset))
         } else {
             // 资产充足
-            self.asset = Some(asset);
+            self.locked_asset = Some(asset);
             self.state = EOrderState::Unfulfilled;
             Ok(())
         }
     }
 
     /// 订单成交
-    /// 返回已锁定的资产 由交易对完成资产转换
-    pub fn execute(&mut self) -> ROrderResult<SAssetV2> {
+    /// 返回已锁定的资产
+    /// 绑定手续费资产
+    pub fn execute(&mut self, paid_fee_asset: Option<SAssetV2>) -> ROrderResult<SAssetV2> {
         // 状态校验
         self.state_check(EOrderState::Unfulfilled)?;
-        match self.asset.take() {
-            None => { Err(EOrderError::AssetNotExist) }
-            Some(asset) => {
-                self.state = EOrderState::Executed;
-                Ok(asset)
+        match &self.paid_fee_asset {
+            Some(_) => {
+                Err(EOrderError::ExecuteOrderWithFeeAssetError(self.clone()))
+            }
+            None => {
+                match self.locked_asset.take() {
+                    None => { Err(EOrderError::LockedAssetNotExistError(self.clone())) }
+                    Some(asset) => {
+                        self.state = EOrderState::Executed;
+                        self.paid_fee_asset = Some(match paid_fee_asset {
+                            None => {
+                                SAssetV2 {
+                                    as_type: asset.as_type,
+                                    balance: Decimal::from(0),
+                                }
+                            }
+                            Some(asset) => { asset }
+                        }.clone());
+                        Ok(asset)
+                    }
+                }
             }
         }
     }
@@ -172,7 +194,7 @@ impl SOrder {
     /// 释放已锁定的资产
     pub fn cancel(&mut self) -> Option<SAssetV2> {
         self.state = EOrderState::Canceled;
-        self.asset.take()
+        self.locked_asset.take()
     }
 
     // region ----- get函数 -----
@@ -200,8 +222,12 @@ impl SOrder {
         self.amount
     }
 
-    pub fn get_asset(&self) -> Option<SAssetV2> {
-        self.asset
+    pub fn get_locked_asset(&self) -> &Option<SAssetV2> {
+        &self.locked_asset
+    }
+
+    pub fn get_paid_fee_asset(&self) -> &Option<SAssetV2> {
+        &self.paid_fee_asset
     }
     // endregion ----- get函数 -----
 }
@@ -287,8 +313,8 @@ mod tests {
         let r = order.submit(asset);
         println!("after:{:?}", order);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::AssetQuantityNotEnough(_,_, _, _))));
-        if let Err(EOrderError::AssetQuantityNotEnough(o, a, b, c)) = r {
+        assert!(matches!(r, Err(EOrderError::AssetQuantityNotEnoughError(_,_, _, _))));
+        if let Err(EOrderError::AssetQuantityNotEnoughError(o, a, b, c)) = r {
             assert_eq!(a, Decimal::from_str("31.415926").unwrap());
             assert_eq!(b, Decimal::from_str("10").unwrap());
             let SAssetV2 { as_type, balance } = c;
@@ -313,7 +339,7 @@ mod tests {
     #[test]
     pub fn test_execute_fail_state_error() {
         let mut order = get_pending_data();
-        let r = order.execute();
+        let r = order.execute(None);
         assert!(r.is_err());
         assert!(matches!(r, Err(EOrderError::StateVerificationError(_,_))));
         if let Err(EOrderError::StateVerificationError(a, b)) = r {
@@ -325,16 +351,25 @@ mod tests {
     #[test]
     pub fn test_execute_fail_no_asset_error() {
         let mut order = get_unfulfilled_data();
-        order.asset = None;
-        let r = order.execute();
+        order.locked_asset = None;
+        let r = order.execute(None);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::AssetNotExist)));
+        assert!(matches!(r, Err(EOrderError::LockedAssetNotExistError(_))));
+    }
+
+    #[test]
+    pub fn test_execute_fail_with_fee_error() {
+        let mut order = get_unfulfilled_data();
+        order.paid_fee_asset = Some(SAssetV2 { as_type: EAssetType::Usdt, balance: Decimal::from(1) });
+        let r = order.execute(None);
+        assert!(r.is_err());
+        assert!(matches!(r, Err(EOrderError::ExecuteOrderWithFeeAssetError(_))));
     }
 
     #[test]
     pub fn test_execute_success() {
         let mut order = get_unfulfilled_data();
-        let r = order.execute();
+        let r = order.execute(None);
         assert!(r.is_ok());
         let SAssetV2 { as_type, balance } = r.unwrap();
         assert_eq!(as_type, EAssetType::Usdt);

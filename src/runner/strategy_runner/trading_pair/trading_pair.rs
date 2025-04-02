@@ -9,7 +9,7 @@ use crate::data::funding_rate::{SFundingRateData, SFundingRateUnitData};
 use crate::data::kline::{SKlineData, SKlineUnitData};
 use crate::order::EOrderAction;
 use crate::runner::strategy_runner::order::order::{SAddOrder, SOrder};
-use crate::runner::strategy_runner::order::order_manager::{EOrderManagerError, ROrderManagerResult, SOrderManager};
+use crate::runner::strategy_runner::order::order_manager_v2::{EOrderManagerV2Error, ROrderManagerV2Result, SOrderManagerV2};
 
 /// 交易对
 #[derive(Debug)]
@@ -22,7 +22,7 @@ pub struct STradingPair {
     pub quote_currency: EAssetType,
     pub kline_data: SKlineData,
     pub funding_rate: Option<SFundingRateData>,
-    pub order_manager: SOrderManager,
+    pub order_manager: SOrderManagerV2,
 }
 
 impl STradingPair {
@@ -38,31 +38,31 @@ impl STradingPair {
     }
 
     // region ----- 转发SOrderManager函数 -----
-    pub fn add_order(&mut self, price: Decimal, quantity: Decimal, action: EOrderAction) -> ROrderManagerResult<Uuid> {
+    pub fn add_order(&mut self, price: Decimal, quantity: Decimal, action: EOrderAction) -> ROrderManagerV2Result<Uuid> {
         self.order_manager.add_order(SAddOrder { price, quantity, action })
     }
 
     pub fn peek_order(&self, uuid: Uuid) -> Option<&SOrder> {
-        self.order_manager.peek_order(uuid)
+        self.order_manager.peek_order(&uuid)
     }
 
-    pub fn remove_orders(&mut self, uuid_list: Vec<Uuid>) -> Result<Vec<SOrder>, EOrderManagerError> {
+    pub fn remove_orders(&mut self, uuid_list: Vec<Uuid>) -> Result<Vec<SOrder>, EOrderManagerV2Error> {
         self.order_manager.remove_orders(uuid_list)
     }
 
-    pub fn peek_highest_buy_order(&self) -> Option<&SOrder> {
+    pub fn peek_highest_buy_order(&self) -> ROrderManagerV2Result<Option<&SOrder>> {
         self.order_manager.peek_highest_buy_order()
     }
 
-    pub fn pop_highest_buy_order(&mut self) -> Option<SOrder> {
+    pub fn pop_highest_buy_order(&mut self) -> ROrderManagerV2Result<Option<SOrder>> {
         self.order_manager.pop_highest_buy_order()
     }
 
-    pub fn peek_lowest_sell_order(&self) -> Option<&SOrder> {
+    pub fn peek_lowest_sell_order(&self) -> ROrderManagerV2Result<Option<&SOrder>> {
         self.order_manager.peek_lowest_sell_order()
     }
 
-    pub fn pop_lowest_sell_order(&mut self) -> Option<SOrder> {
+    pub fn pop_lowest_sell_order(&mut self) -> ROrderManagerV2Result<Option<SOrder>> {
         self.order_manager.pop_lowest_sell_order()
     }
 
