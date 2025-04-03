@@ -1,0 +1,431 @@
+use std::collections::HashMap;
+use chrono::{DateTime, Duration, Local};
+use log::{error, info};
+use rust_decimal::{
+    Decimal,
+};
+use uuid::Uuid;
+use crate::{
+    data_source::{
+        db::{
+            api::{
+                data_api_db::SDataApiDb,
+                TDataApi,
+            },
+        },
+    },
+    protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult},
+    strategy::TStrategy,
+};
+use crate::data_source::data_manager::SDataManager;
+use crate::data_runtime::asset::{
+    asset::SAssetV2,
+    EAssetType,
+};
+use crate::data_runtime::order::EOrderAction;
+use crate::runner::back_trade::config::SBackTradeRunnerConfig;
+use crate::data_runtime::asset::asset_map::SAssetMap;
+use crate::data_runtime::order::order::{SAddOrder, SOrder};
+use crate::data_source::kline::SKlineUnitData;
+use crate::data_source::trading_pair::ETradingPairType;
+use crate::user::SUser;
+
+pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
+
+#[derive(Debug)]
+pub enum EBackTradeRunnerError {
+    KlineNotFoundError(ETradingPairType, DateTime<Local>),
+    OrderActionError(EOrderAction),
+    AssetLockedNotEnoughError(EAssetType),
+    DenominateSupportOnlyBtcAndUsdtError(EAssetType),
+}
+
+/// 回测执行器
+#[derive(Debug)]
+pub struct SBackTradeRunner<A: TDataApi> {
+    /// 配置
+    pub config: SBackTradeRunnerConfig,
+    /// 数据接口
+    pub data_manager: SDataManager<A>,
+    /// 记录最新的交易对报价
+    pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
+}
+
+impl SBackTradeRunner<SDataApiDb> {
+    pub async fn new(config: SBackTradeRunnerConfig) -> Self {
+        let date_from = config.date_from;
+        let date_to = config.date_to;
+        Self {
+            config,
+            data_manager: SDataManager::build(date_from, date_to).await,
+            trading_pair_prices: Default::default(),
+        }
+    }
+
+    pub fn run<S: TStrategy>(&mut self, users: &mut Vec<SUser<S>>) -> RBackTradeRunnerResult<()> {
+        // 循环遍历k线 根据时间间隔1分钟
+        let mut current_date = self.config.date_from;
+        while current_date < self.config.date_to {
+            info!("当前k线时间:\t{}", current_date);
+
+            for user in users.iter() {
+                // 输出用户当前资产状况
+                info!("当前用户:\t{:?}", user.id);
+                info!("用户总资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
+                info!("用户总资产:\t{:?}", user.total_asset());
+                info!("用户可用资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
+                info!("用户可用资产:\t{:?}", user.total_available_assets());
+                info!("用户锁定资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
+                info!("用户锁定资产:\t{:?}", user.total_locked_assets());
+                // 输出所有挂单
+                info!("用户所有挂单:\t{:?}", user.tp_order_map.inner.iter());
+            }
+
+            // 在单分钟k线内遍历所有交易对
+            for (tp_type, trading_pair) in self.data_manager.trading_pair_manager.inner.iter() {
+                // 获取k线数据
+                let option_kline = trading_pair.get_kline(&current_date);
+                if let None = option_kline {
+                    return Err(EBackTradeRunnerError::KlineNotFoundError(tp_type.clone(), current_date.clone()));
+                }
+                let kline_unit_data = option_kline.unwrap().clone();
+                // 查询当前k线对应的资金费率
+                let funding_rate = trading_pair.get_funding_rate(&current_date).unwrap_or(&Decimal::from(0)).clone();
+
+                log::debug!("K线信息 - 交易对: {:?}\t开盘价:{}\t收盘价:{}\t最高价:{}\t最低价:{}\t资金费率:{}", tp_type, kline_unit_data.open_price, kline_unit_data.close_price, kline_unit_data.high_price, kline_unit_data.low_price, funding_rate);
+
+                // 记录报价
+                self.trading_pair_prices.entry(tp_type.clone())
+                    .and_modify(|e| *e = kline_unit_data.close_price)
+                    .or_insert(Decimal::from(0));
+
+
+                for user in users.iter_mut() {
+                    match self.parse_trading_pair_kline(
+                        &current_date,
+                        tp_type,
+                        &kline_unit_data,
+                        funding_rate,
+                        user,
+                    ) {
+                        Err(e) => {
+                            error!("{:?}", e);
+                        }
+                        Ok(runner_parse_result) => {
+                            // 将增量数据传输给策略模块，获取策略行为。
+                            // 将策略行为进行排序 cancel order在前 new order在后
+                            info!("runner_parse_result.order_result: {:?}", runner_parse_result.order_result);
+                            let strategy_actions = user.strategy.run(runner_parse_result);
+                            info!("strategy_actions:");
+                            for action in strategy_actions.iter() {
+                                info!("action: {:?}", action);
+                            }
+
+                            // 根据策略行为，调整订单数据。
+                            let parse_action_results = self.action_verify_update(
+                                strategy_actions,
+                                tp_type,
+                                user,
+                            );
+                            // 向策略模块反馈校验、调整结果
+                            user.strategy.verify(parse_action_results);
+                        }
+                    }
+                }
+            }
+
+
+            // 时间递增 1 分钟
+            current_date += Duration::minutes(1);
+
+            // thread::sleep(std::time::Duration::from_secs(2));
+        }
+        // todo 回测结束 输出结果
+        Ok(())
+    }
+
+    /// 处理新的k线和资金费率，更新订单和资产，记录增量处理结果。
+    fn parse_trading_pair_kline<S: TStrategy>(
+        &self,
+        current_date: &DateTime<Local>,
+        tp_type: &ETradingPairType,
+        kline_unit_data: &SKlineUnitData,
+        funding_rate: Decimal,
+        user: &mut SUser<S>,
+    ) -> RBackTradeRunnerResult<SRunnerParseResult>
+    {
+        // 根据K线 结算订单数据 结算资产数据
+        let mut order_results: Vec<ERunnerParseOrderResult> = Vec::new(); // 订单已成交列表
+        let base_asset_type = tp_type.get_base_currency();
+        let quote_asset_type = tp_type.get_quote_currency();
+        let maker_order_fee = self.config.maker_order_fee;
+        let user_asset_manager = &mut user.available_asset_manager;
+
+        let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
+
+        { // debug
+            let highest_buy_price = match order_manager.peek_highest_buy_order().unwrap() {
+                None => { None }
+                Some(order) => { Some(order.get_price()) }
+            };
+            let lowest_sell_price = match order_manager.peek_lowest_sell_order().unwrap() {
+                None => { None }
+                Some(order) => { Some(order.get_price()) }
+            };
+            log::debug!("盘口信息 - 交易对: {:?}\t买一价格:{:?}\t卖一价格:{:?}", tp_type, highest_buy_price, lowest_sell_price);
+        }
+
+        // 买单结算 用quote_currency换base_current
+        while let Some(order) = order_manager.peek_highest_buy_order().unwrap() {
+            // 操作方向校验
+            if order.get_action() != EOrderAction::Buy {
+                log::error!("EOrderAction Error: Expected Buy - Actually {:?}", order.get_action());
+                // return Err(EBackTradeRunnerError::OrderActionError(order.action));
+            }
+            // 挂单价格大于等于当前k线最低价格，则买单成交。
+            if order.get_price() < kline_unit_data.low_price {
+                break;
+            }
+            let mut order = order_manager.pop_highest_buy_order().unwrap().unwrap();
+            let base_quantity = order.get_quantity();
+            let quote_quantity = order.get_amount();
+            // 计算手续费(计价资产)
+            let fee_quote_asset = SAssetV2 {
+                as_type: quote_asset_type,
+                balance: quote_quantity * maker_order_fee,
+            };
+            // 结算资产
+            // 提取订单锁定的计价资产 生成基础资产
+            match order.execute(Some(fee_quote_asset.clone())) {
+                // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(consumed_quote_asset) => {
+                    // 用户获得基础资产
+                    let obtain_base_asset = SAssetV2 {
+                        as_type: base_asset_type,
+                        balance: base_quantity - base_quantity * maker_order_fee,
+                    };
+
+                    info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &consumed_quote_asset);
+
+                    user_asset_manager.merge_asset(obtain_base_asset);
+                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                }
+            }
+        }
+
+        // 卖单结算 用base_current换quote_currency
+        while let Some(order) = order_manager.peek_lowest_sell_order().unwrap() {
+            // 操作方向校验
+            if order.get_action() != EOrderAction::Sell {
+                log::error!("EOrderAction Error: Expected Sell - Actually {:?}", order.get_action());
+                // return Err(EBackTradeRunnerError::OrderActionError(order.action));
+            }
+            // 挂单价格大于等于当前k线最低价格，则买单成交。
+            if order.get_price() > kline_unit_data.high_price {
+                break;
+            }
+            let mut order = order_manager.pop_lowest_sell_order().unwrap().unwrap();
+            let base_quantity = order.get_quantity();
+            // 计算手续费(基础资产)
+            let fee_base_asset = SAssetV2 {
+                as_type: base_asset_type,
+                balance: base_quantity * maker_order_fee,
+            };
+            let quote_quantity = order.get_amount();
+            // 结算资产
+            // 提取订单锁定的基础资产 生成计价资产
+            match order.execute(Some(fee_base_asset.clone())) {
+                // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(consumed_base_asset) => {
+                    // 用户获得计价资产
+                    let obtain_quote_asset = SAssetV2 {
+                        as_type: quote_asset_type,
+                        balance: quote_quantity - quote_quantity * maker_order_fee,
+                    };
+
+                    info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &consumed_base_asset);
+
+                    user_asset_manager.merge_asset(obtain_quote_asset);
+                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                }
+            }
+        }
+
+        // 将k线和订单结算结果 用于反馈给strategy
+        let runner_parse_result = SRunnerParseResult {
+            date_time: current_date.clone(),
+            new_kline: kline_unit_data.clone(),
+            new_funding_rate: funding_rate,
+            order_result: order_results,
+        };
+
+        Ok(runner_parse_result)
+    }
+
+    /// 根据策略行为，调整订单数据。
+    fn action_verify_update<S: TStrategy>(
+        &self,
+        strategy_actions: Vec<EStrategyAction>,
+        tp_type: &ETradingPairType,
+        user: &mut SUser<S>,
+    ) -> Vec<ERunnerParseActionResult>
+    {
+        let user_asset_manager = &mut user.available_asset_manager;
+        let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
+        let base_asset_type = tp_type.get_base_currency();
+        let quote_asset_type = tp_type.get_quote_currency();
+
+
+        // 根据策略行为，校验、调整订单数据。
+        let mut parse_action_result: Vec<ERunnerParseActionResult> = Vec::new();
+        // 根据action类型进行分类 之后进行分批批处理
+        let mut add_orders: Vec<SAddOrder> = Vec::new();
+        let mut cancel_orders: Vec<Uuid> = Vec::new();
+
+        for action in strategy_actions {
+            match action {
+                EStrategyAction::NewOrder(order) => {
+                    add_orders.push(order)
+                }
+                EStrategyAction::CancelOrder(uuid) => {
+                    // 判断uuid是否有效
+                    if let Some(_) = order_manager.peek_order(&uuid) {
+                        cancel_orders.push(uuid)
+                    } else {
+                        info!("Cancel Fail! : {:?}", uuid);
+                    }
+                }
+            }
+        }
+
+        // 优先处理取消的订单（需要做堆重构）
+        match order_manager.remove_orders(cancel_orders) {
+            Err(e) => { error!("Error: {:?}", e); }
+            Ok(removed_order_vec) => {
+                // 订单执行成功 进行资产结算
+                for mut order in removed_order_vec {
+                    info!("取消订单: {:?}", order);
+                    // 订单成功取消 释放锁定资产
+                    if let Some(asset) = order.cancel() {
+                        let user_asset = match order.get_action() {
+                            EOrderAction::Buy => { user_asset_manager.get_mut(quote_asset_type).unwrap() }
+                            EOrderAction::Sell => { user_asset_manager.get_mut(base_asset_type).unwrap() }
+                        };
+                        if let Err(e) = user_asset.merge(asset) {
+                            error!("Error: {:?}", e);
+                        }
+                        parse_action_result.push(ERunnerParseActionResult::OrderCanceled(order));
+                    }
+                }
+            }
+        }
+
+        // 处理新增订单 资产结算
+        for add_order in add_orders {
+            // info!("Start: add_order");
+            // info!("add_order:{:?}", add_order);
+            let mut new_order = SOrder::new(add_order.price, add_order.quantity, add_order.action);
+            let (necessary_asset_quantity, user_asset) = match add_order.action {
+                EOrderAction::Buy => {
+                    (add_order.price * add_order.quantity, user_asset_manager.get_mut(quote_asset_type).unwrap())
+                }
+                EOrderAction::Sell => {
+                    (add_order.quantity, user_asset_manager.get_mut(base_asset_type).unwrap())
+                }
+            };
+            // info!("necessary_asset_quantity:{:?}", necessary_asset_quantity);
+            if let Ok(locked_quote_asset) = user_asset.split(necessary_asset_quantity) {
+                // info!("locked_quote_asset:{:?}", locked_quote_asset);
+                if let Err(e) = new_order.submit(locked_quote_asset) {
+                    error!("Error: {:?}", e);
+                }
+                info!("新增订单: {:?}", &new_order);
+                if let Err(e) = order_manager.insert_order(new_order.clone()) {
+                    error!("Error: {:?}", e);
+                }
+                parse_action_result.push(ERunnerParseActionResult::OrderPlaced(new_order));
+            }
+            // info!("Finish: add_order");
+        }
+        parse_action_result
+    }
+
+
+    /// 以给定资产类型对资产进行计
+    fn assets_denominate(&self, assets: &SAssetMap, target_as_type: EAssetType) -> RBackTradeRunnerResult<Decimal> {
+        match target_as_type {
+            EAssetType::Usdt | EAssetType::Btc => {
+                // 先转换为usdt+btc
+                let mut tmp = SAssetMap::new();
+                for (_, asset) in assets.inner.iter() {
+                    match asset.as_type {
+                        EAssetType::Usdt | EAssetType::Btc => { tmp.merge_asset(asset.clone()) }
+                        EAssetType::BtcUsdtFuture => {
+                            let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdtFuture).unwrap();
+                            let btc_usdt_future_balance = asset.balance;
+                            let usdt_balance = btc_usdt_future_balance * price;
+                            let new_asset = SAssetV2 {
+                                as_type: EAssetType::Usdt,
+                                balance: usdt_balance,
+                            };
+                            tmp.merge_asset(new_asset)
+                        }
+                        EAssetType::BtcUsdCmFuture => {
+                            let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdCmFuture).unwrap();
+                            let btc_usd_cm_future_balance = asset.balance;
+                            let btc_balance = btc_usd_cm_future_balance * price;
+                            let new_asset = SAssetV2 {
+                                as_type: EAssetType::Btc,
+                                balance: btc_balance,
+                            };
+                            tmp.merge_asset(new_asset)
+                        }
+                    }
+                }
+                // 再根据target_as_type进行转换
+                let mut result = Decimal::from(0);
+                let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdt).unwrap();
+                for (_, asset) in tmp.inner.iter() {
+                    match asset.as_type {
+                        EAssetType::Usdt => {
+                            if target_as_type == EAssetType::Btc {
+                                result += asset.balance / price
+                            } else {
+                                result += asset.balance;
+                            }
+                        }
+                        EAssetType::Btc => {
+                            if target_as_type == EAssetType::Usdt {
+                                result += asset.balance * price
+                            } else {
+                                result += asset.balance;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(result)
+            }
+            _ => { Err(EBackTradeRunnerError::DenominateSupportOnlyBtcAndUsdtError(target_as_type)) }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    // #[tokio::test]
+    // pub async fn test() {
+    //     let mut runner = SBackTradeRunner::<SDataApiDb, SStrategyMkTest>::new().await;
+    //     println!("{:?}", runner);
+    //
+    //     runner.run().unwrap();
+    //     println!("{:?}", runner);
+    // }
+}

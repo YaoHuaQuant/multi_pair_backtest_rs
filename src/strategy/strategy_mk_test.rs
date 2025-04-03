@@ -3,13 +3,13 @@ use std::str::FromStr;
 use log::info;
 use rust_decimal::Decimal;
 use uuid::Uuid;
-use crate::order::EOrderAction;
+use crate::data_runtime::order::EOrderAction;
 use crate::protocol::{ERunnerParseActionResult, EStrategyAction, SRunnerParseResult};
-use crate::runner::strategy_runner::order::order::{SAddOrder, SOrder};
+use crate::data_runtime::order::order::SAddOrder;
 use crate::strategy::TStrategy;
 
 /// 测试用策略
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SStrategyMkTest {
     pub remove_list: VecDeque<Uuid>,
 }
