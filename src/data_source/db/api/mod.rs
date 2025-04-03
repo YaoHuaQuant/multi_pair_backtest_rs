@@ -9,8 +9,8 @@ use crate::data_source::funding_rate::SFundingRateData;
 use crate::data_source::kline::SKlineData;
 
 pub trait TDataApi {
-    fn get_kline(&self, from:DateTime<Local>, to:DateTime<Local>)-> impl Future<Output = RDBResult<SKlineData>> + Send;
-    fn get_funding_rate(&self, from:DateTime<Local>, to:DateTime<Local>)-> impl Future<Output = RDBResult<SFundingRateData>> + Send;
+    fn get_kline(&self, from: &DateTime<Local>, to: &DateTime<Local>) -> impl Future<Output=RDBResult<SKlineData>> + Send;
+    fn get_funding_rate(&self, from: &DateTime<Local>, to: &DateTime<Local>) -> impl Future<Output=RDBResult<SFundingRateData>> + Send;
     fn default() -> Box<impl TDataApi> {
         Box::new(SDataApiDb::new(SDbClickhouse::new()))
     }

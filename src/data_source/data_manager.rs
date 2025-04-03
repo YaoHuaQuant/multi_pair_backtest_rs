@@ -18,11 +18,11 @@ pub struct SDataManager<A: TDataApi> {
     /// 数据接口
     pub data_api: A,
     /// 交易对管理器
-    pub trading_pair_manager: STradingPairMap,
+    pub trading_pair_map: STradingPairMap,
 }
 
 impl SDataManager<SDataApiDb> {
-    pub async fn build(date_from: DateTime<Local>, date_to: DateTime<Local>) -> Self {
+    pub async fn build(date_from: &DateTime<Local>, date_to: &DateTime<Local>) -> Self {
         let db = SDbClickhouse::new();
         let data_api = SDataApiDb::new(db);
 
@@ -32,29 +32,29 @@ impl SDataManager<SDataApiDb> {
         let funding_rate: Option<SFundingRateData> = None; // todo 插入资金费率
         trading_pair_manager.add_trading_pair(ETradingPairType::BtcUsdt, kline, funding_rate);
 
-        Self { data_api, trading_pair_manager }
+        Self { data_api, trading_pair_map: trading_pair_manager }
     }
 }
 
 impl<A: TDataApi> SDataManager<A> {
     /// 获取所有交易对
     pub fn get_trading_pairs(&self) -> &HashMap<ETradingPairType, STradingPair> {
-        &self.trading_pair_manager.inner
+        &self.trading_pair_map.inner
     }
 
     /// 获取特定交易对
     pub fn get_mut_trading_pairs(&mut self) -> &mut HashMap<ETradingPairType, STradingPair> {
-        &mut self.trading_pair_manager.inner
+        &mut self.trading_pair_map.inner
     }
 
     /// 获取所有交易对
     pub fn get_trading_pair(&self, tp_type: ETradingPairType) -> RTradingPairManagerResult<&STradingPair> {
-        self.trading_pair_manager.get(tp_type)
+        self.trading_pair_map.get(tp_type)
     }
 
     /// 获取特定交易对
     pub fn get_mut_trading_pair(&mut self, tp_type: ETradingPairType) -> RTradingPairManagerResult<&mut STradingPair> {
-        self.trading_pair_manager.get_mut(tp_type)
+        self.trading_pair_map.get_mut(tp_type)
     }
 
     /// 获取特定K线的收盘时间

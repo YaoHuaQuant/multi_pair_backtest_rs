@@ -23,12 +23,12 @@ impl Default for SDataApiDb {
 }
 
 impl TDataApi for SDataApiDb {
-    async fn get_kline(&self, from: DateTime<Local>, to: DateTime<Local>) -> RDBResult<SKlineData> {
+    async fn get_kline(&self, from: &DateTime<Local>, to: &DateTime<Local>) -> RDBResult<SKlineData> {
         let result: SKlineData = SKlineBtcUSDT1mDao::select_range(&self.db, from, to).await?.into();
         Ok(result)
     }
 
-    async fn get_funding_rate(&self, from: DateTime<Local>, to: DateTime<Local>) -> RDBResult<SFundingRateData> {
+    async fn get_funding_rate(&self, from: &DateTime<Local>, to: &DateTime<Local>) -> RDBResult<SFundingRateData> {
         todo!()
     }
 }

@@ -7,5 +7,5 @@ use crate::user::SUser;
 pub mod back_trade;
 
 pub trait TRunner<S: TStrategy> {
-    fn run(&mut self, users: &Vec<SUser<S>>);
+    fn run(&mut self, users: &mut Vec<SUser<S>>);
 }

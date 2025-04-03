@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use crate::config::{config_date_from, config_date_to, MAKER_ORDER_FEE, TAKER_ORDER_FEE};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SBackTradeRunnerConfig {
     ///  吃单手续费
     pub taker_order_fee: Decimal,

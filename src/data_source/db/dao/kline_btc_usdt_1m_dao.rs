@@ -22,7 +22,7 @@ pub struct SKlineBtcUSDT1mDao {
 }
 
 impl SKlineBtcUSDT1mDao {
-    pub async fn select_range(db: &SDbClickhouse, from: DateTime<Local>, to: DateTime<Local>) -> RDBResult<Vec<SKlineBtcUSDT1mDao>> {
+    pub async fn select_range(db: &SDbClickhouse, from: &DateTime<Local>, to: &DateTime<Local>) -> RDBResult<Vec<SKlineBtcUSDT1mDao>> {
         let client = db.get_client();
         // 2️⃣ 查询数据
         let query = format!("\

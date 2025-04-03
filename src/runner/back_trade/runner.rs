@@ -6,14 +6,7 @@ use rust_decimal::{
 };
 use uuid::Uuid;
 use crate::{
-    data_source::{
-        db::{
-            api::{
-                data_api_db::SDataApiDb,
-                TDataApi,
-            },
-        },
-    },
+    data_source::db::api::TDataApi,
     protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult},
     strategy::TStrategy,
 };
@@ -28,6 +21,7 @@ use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::order::{SAddOrder, SOrder};
 use crate::data_source::kline::SKlineUnitData;
 use crate::data_source::trading_pair::ETradingPairType;
+use crate::runner::TRunner;
 use crate::user::SUser;
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
@@ -42,27 +36,17 @@ pub enum EBackTradeRunnerError {
 
 /// 回测执行器
 #[derive(Debug)]
-pub struct SBackTradeRunner<A: TDataApi> {
+pub struct SBackTradeRunner<D: TDataApi> {
     /// 配置
     pub config: SBackTradeRunnerConfig,
     /// 数据接口
-    pub data_manager: SDataManager<A>,
+    pub data_manager: SDataManager<D>,
     /// 记录最新的交易对报价
     pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
 }
 
-impl SBackTradeRunner<SDataApiDb> {
-    pub async fn new(config: SBackTradeRunnerConfig) -> Self {
-        let date_from = config.date_from;
-        let date_to = config.date_to;
-        Self {
-            config,
-            data_manager: SDataManager::build(date_from, date_to).await,
-            trading_pair_prices: Default::default(),
-        }
-    }
-
-    pub fn run<S: TStrategy>(&mut self, users: &mut Vec<SUser<S>>) -> RBackTradeRunnerResult<()> {
+impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
+    fn run(&mut self, users: &mut Vec<SUser<S>>) {
         // 循环遍历k线 根据时间间隔1分钟
         let mut current_date = self.config.date_from;
         while current_date < self.config.date_to {
@@ -74,19 +58,21 @@ impl SBackTradeRunner<SDataApiDb> {
                 info!("用户总资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
                 info!("用户总资产:\t{:?}", user.total_asset());
                 info!("用户可用资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
-                info!("用户可用资产:\t{:?}", user.total_available_assets());
+                info!("用户可用资产:\t{:?}", user.available_assets());
                 info!("用户锁定资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
-                info!("用户锁定资产:\t{:?}", user.total_locked_assets());
+                info!("用户锁定资产:\t{:?}", user.locked_assets());
                 // 输出所有挂单
                 info!("用户所有挂单:\t{:?}", user.tp_order_map.inner.iter());
             }
 
             // 在单分钟k线内遍历所有交易对
-            for (tp_type, trading_pair) in self.data_manager.trading_pair_manager.inner.iter() {
+            for (tp_type, trading_pair) in self.data_manager.trading_pair_map.inner.iter() {
                 // 获取k线数据
                 let option_kline = trading_pair.get_kline(&current_date);
                 if let None = option_kline {
-                    return Err(EBackTradeRunnerError::KlineNotFoundError(tp_type.clone(), current_date.clone()));
+                    let err = EBackTradeRunnerError::KlineNotFoundError(tp_type.clone(), current_date.clone());
+                    error!("{:?}", err);
+                    return ();
                 }
                 let kline_unit_data = option_kline.unwrap().clone();
                 // 查询当前k线对应的资金费率
@@ -141,8 +127,19 @@ impl SBackTradeRunner<SDataApiDb> {
             // thread::sleep(std::time::Duration::from_secs(2));
         }
         // todo 回测结束 输出结果
-        Ok(())
+        ()
     }
+}
+
+impl<D: TDataApi> SBackTradeRunner<D> {
+    pub async fn new(config: SBackTradeRunnerConfig, data_manager: SDataManager<D>) -> Self {
+        Self {
+            config,
+            data_manager,
+            trading_pair_prices: Default::default(),
+        }
+    }
+
 
     /// 处理新的k线和资金费率，更新订单和资产，记录增量处理结果。
     fn parse_trading_pair_kline<S: TStrategy>(
@@ -159,7 +156,7 @@ impl SBackTradeRunner<SDataApiDb> {
         let base_asset_type = tp_type.get_base_currency();
         let quote_asset_type = tp_type.get_quote_currency();
         let maker_order_fee = self.config.maker_order_fee;
-        let user_asset_manager = &mut user.available_asset_manager;
+        let user_asset_manager = &mut user.available_assets;
 
         let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
 
@@ -276,7 +273,7 @@ impl SBackTradeRunner<SDataApiDb> {
         user: &mut SUser<S>,
     ) -> Vec<ERunnerParseActionResult>
     {
-        let user_asset_manager = &mut user.available_asset_manager;
+        let user_asset_manager = &mut user.available_assets;
         let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
         let base_asset_type = tp_type.get_base_currency();
         let quote_asset_type = tp_type.get_quote_currency();

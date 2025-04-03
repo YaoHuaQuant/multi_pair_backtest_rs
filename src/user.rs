@@ -40,22 +40,10 @@ pub struct SUser<S: TStrategy> {
     pub tp_order_map: STradingPairOrderManagerMap,
 
     /// 可用资产管理器
-    pub available_asset_manager: SAssetMap,
+    pub available_assets: SAssetMap,
 
     /// 策略
     pub strategy: S,
-}
-
-impl<S: TStrategy + Default> Default for SUser<S> {
-    fn default() -> Self {
-        Self {
-            config: Default::default(),
-            id: Uuid::new_v4(),
-            tp_order_map: Default::default(),
-            available_asset_manager: Default::default(),
-            strategy: S::default(),
-        }
-    }
 }
 
 impl<S: TStrategy> SUser<S> {
@@ -64,7 +52,7 @@ impl<S: TStrategy> SUser<S> {
             config,
             id: Uuid::new_v4(),
             tp_order_map: Default::default(),
-            available_asset_manager: Default::default(),
+            available_assets: Default::default(),
             strategy,
         }
     }
@@ -81,17 +69,17 @@ impl<S: TStrategy> SUser<S> {
 
     /// 累计用户的总资产
     pub fn total_asset(&self) -> SAssetMap {
-        self.total_locked_assets() + self.total_available_assets()
+        self.locked_assets() + self.available_assets()
     }
 
     /// 累计用户的总资产
-    pub fn total_locked_assets(&self) -> SAssetMap {
+    pub fn locked_assets(&self) -> SAssetMap {
         self.tp_order_map.calculate_total_assets()
     }
 
     /// 累计用户的总资产
-    pub fn total_available_assets(&self) -> SAssetMap {
-        self.available_asset_manager.clone()
+    pub fn available_assets(&self) -> SAssetMap {
+        self.available_assets.clone()
     }
 }
 
