@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use rust_decimal::Decimal;
 
-use crate::data_runtime::asset::asset::{EAssetV2Error, RemainBalance, RequireBalance, SAssetV2};
+use crate::data_runtime::asset::asset::{EAssetV2Error, RemainBalance, RequireBalance, SAsset};
 use crate::data_runtime::asset::EAssetType;
 
 pub type RAssetMapResult<T> = Result<T, EAssetMapError>;
@@ -13,7 +13,7 @@ pub enum EAssetMapError {
     /// 可用额度不足(可用额度，所需额度)
     BalanceNotEnough(RemainBalance, RequireBalance),
     /// 资产类型不匹配
-    AssetTypeInconsistentError(EAssetType, EAssetType, SAssetV2),
+    AssetTypeInconsistentError(EAssetType, EAssetType, SAsset),
 }
 
 impl From<EAssetV2Error> for EAssetMapError {
@@ -28,7 +28,7 @@ impl From<EAssetV2Error> for EAssetMapError {
 /// AssetType 和 Asset 的Map映射
 #[derive(Debug, Default, Clone)]
 pub struct SAssetMap {
-    pub inner: HashMap<EAssetType, SAssetV2>,
+    pub inner: HashMap<EAssetType, SAsset>,
 }
 
 impl SAssetMap {
@@ -41,7 +41,7 @@ impl SAssetMap {
     pub fn add_asset_type(&mut self, as_type: EAssetType) {
         self.inner
             .entry(as_type)
-            .or_insert(SAssetV2 {
+            .or_insert(SAsset {
                 as_type,
                 balance: Decimal::from(0),
             });
@@ -53,14 +53,14 @@ impl SAssetMap {
         }
     }
 
-    pub fn get(&self, as_type: EAssetType) -> RAssetMapResult<&SAssetV2> {
+    pub fn get(&self, as_type: EAssetType) -> RAssetMapResult<&SAsset> {
         match self.inner.get(&as_type) {
             None => { Err(EAssetMapError::AssetNotFoundError(as_type)) }
             Some(item) => { Ok(item) }
         }
     }
 
-    pub fn get_mut(&mut self, as_type: EAssetType) -> RAssetMapResult<&mut SAssetV2> {
+    pub fn get_mut(&mut self, as_type: EAssetType) -> RAssetMapResult<&mut SAsset> {
         match self.inner.get_mut(&as_type) {
             None => { Err(EAssetMapError::AssetNotFoundError(as_type)) }
             Some(item) => { Ok(item) }
@@ -68,7 +68,7 @@ impl SAssetMap {
     }
 
     /// 插入一个SAssetV2
-    pub fn merge_asset(&mut self, other: SAssetV2) {
+    pub fn merge_asset(&mut self, other: SAsset) {
         let as_type = other.as_type;
         // 如果当前type不存在 则新增
         if let Err(EAssetMapError::AssetNotFoundError(as_type)) = self.get_mut(as_type) {
@@ -78,14 +78,14 @@ impl SAssetMap {
         asset.merge(other).unwrap();
     }
 
-    pub fn merge_assets(&mut self, other_vec: Vec<SAssetV2>) {
+    pub fn merge_assets(&mut self, other_vec: Vec<SAsset>) {
         for other in other_vec {
             self.merge_asset(other)
         }
     }
 
     /// 拆分出一部分新资产
-    pub fn split(&mut self, as_type: EAssetType, balance: Decimal) -> RAssetMapResult<SAssetV2> {
+    pub fn split(&mut self, as_type: EAssetType, balance: Decimal) -> RAssetMapResult<SAsset> {
         let asset = self.get_mut(as_type)?;
         Ok(asset.split(balance)?)
     }
@@ -120,7 +120,7 @@ mod tests {
     use rust_decimal::Decimal;
 
     use crate::data_runtime::asset::asset_map::{EAssetMapError, SAssetMap};
-    use crate::data_runtime::asset::asset::SAssetV2;
+    use crate::data_runtime::asset::asset::SAsset;
     use crate::data_runtime::asset::EAssetType;
 
     #[test]
@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(asset2.balance, Decimal::from(0));
 
         // test merge
-        let r = asset2.merge(SAssetV2 {
+        let r = asset2.merge(SAsset {
             as_type: EAssetType::Btc,
             balance: Decimal::from(10),
         });
@@ -152,7 +152,7 @@ mod tests {
         assert_eq!(asset1.balance, Decimal::from(0));
 
         // test merge success
-        let asset2 = SAssetV2 {
+        let asset2 = SAsset {
             as_type: EAssetType::Btc,
             balance: Decimal::from(10),
         };
@@ -162,7 +162,7 @@ mod tests {
 
 
         // test merge fail
-        let asset3 = SAssetV2 {
+        let asset3 = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from(100),
         };
@@ -180,7 +180,7 @@ mod tests {
         assert_eq!(asset1.balance, Decimal::from(0));
 
         // test merge success
-        let asset2 = SAssetV2 {
+        let asset2 = SAsset {
             as_type: EAssetType::Btc,
             balance: Decimal::from(10),
         };

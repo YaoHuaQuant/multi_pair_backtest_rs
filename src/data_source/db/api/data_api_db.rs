@@ -56,7 +56,7 @@ mod tests {
 
         let api = SDataApiDb::new(db);
 
-        let data = api.get_kline(from, to).await;
+        let data = api.get_kline(&from, &to).await;
 
         match data {
             Ok(data) => {

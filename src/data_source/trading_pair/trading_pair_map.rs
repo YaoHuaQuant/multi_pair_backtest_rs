@@ -102,8 +102,17 @@ impl STradingPairMap {
 #[cfg(test)]
 mod tests {
     use crate::data_source::kline::SKlineData;
+    use crate::data_source::trading_pair::ETradingPairType;
     use crate::data_source::trading_pair::trading_pair_map::STradingPairMap;
-    use crate::data_source::trading_pair::trading_pair_enum::ETradingPairType;
+
+    fn get_test_data() -> STradingPairMap {
+        let mut data = STradingPairMap::new();
+        data.add_trading_pair(ETradingPairType::BtcUsdt, SKlineData::new(), None);
+        data.add_trading_pair(ETradingPairType::BtcUsdtFuture, SKlineData::new(), None);
+        data.add_trading_pair(ETradingPairType::BtcUsdCmFuture, SKlineData::new(), None);
+
+        data
+    }
 
     #[test]
     pub fn test_add_pair() {
@@ -114,66 +123,5 @@ mod tests {
 
         data.add_trading_pair(ETradingPairType::BtcUsdt, SKlineData::new(), None);
         dbg!(&data);
-    }
-
-    #[test]
-    pub fn test_calculate_total_assets() {
-        // todo
-
-        // let mut manager = SOrderManager::new();
-        //
-        // let price_vec_buy = vec![
-        //     Decimal::from_str("1").unwrap(),
-        //     Decimal::from_str("1").unwrap(),
-        //     Decimal::from_str("2").unwrap(),
-        //     Decimal::from_str("3").unwrap(),
-        //     Decimal::from_str("5").unwrap(),
-        // ];
-        //
-        // for price in price_vec_buy {
-        //     let id = manager.add_order(SAddOrder {
-        //         action: EOrderAction::Buy,
-        //         price,
-        //         quantity: Decimal::from_str("1").unwrap(),
-        //     });
-        //     let mut order = manager.orders.get_mut(&id).unwrap();
-        //     let asset = SAssetV2 {
-        //         as_type: EAssetType::Usdt,
-        //         balance: Decimal::from(price),
-        //     };
-        //     let r = order.submit(asset);
-        // }
-        //
-        // let price_vec_sell = vec![
-        //     Decimal::from_str("1").unwrap(),
-        //     Decimal::from_str("1").unwrap(),
-        //     Decimal::from_str("1").unwrap(),
-        //     Decimal::from_str("1").unwrap(),
-        //     Decimal::from_str("1").unwrap(),
-        // ];
-        //
-        // for price in price_vec_sell {
-        //     let id = manager.add_order(SAddOrder {
-        //         action: EOrderAction::Sell,
-        //         price,
-        //         quantity: Decimal::from_str("1").unwrap(),
-        //     });
-        //     let mut order = manager.orders.get_mut(&id).unwrap();
-        //     let asset = SAssetV2 {
-        //         as_type: EAssetType::Btc,
-        //         balance: Decimal::from(price),
-        //     };
-        //     let r = order.submit(asset);
-        // }
-        //
-        // let r = manager.calculate_total_assets();
-        // println!("result:{:?}", r);
-        // let usdt = r.get(&EAssetType::Usdt);
-        // assert!(usdt.is_some());
-        // assert_eq!(*usdt.unwrap(), Decimal::from(12));
-        //
-        // let btc = r.get(&EAssetType::Btc);
-        // assert!(btc.is_some());
-        // assert_eq!(*btc.unwrap(), Decimal::from(5));
     }
 }

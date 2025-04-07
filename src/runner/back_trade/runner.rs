@@ -1,28 +1,32 @@
 use std::collections::HashMap;
 use chrono::{DateTime, Duration, Local};
 use log::{error, info};
-use rust_decimal::{
-    Decimal,
-};
+use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::{
-    data_source::db::api::TDataApi,
+    data_runtime::{
+        asset::{
+            asset::SAsset,
+            EAssetType,
+        },
+        asset::asset_map::SAssetMap,
+        order::EOrderAction,
+        order::order::{SAddOrder, SOrder}
+    },
+    data_source::{
+        data_manager::SDataManager,
+        db::api::TDataApi,
+        kline::SKlineUnitData,
+        trading_pair::ETradingPairType
+    },
     protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult},
-    strategy::TStrategy,
+    runner::{
+        back_trade::config::SBackTradeRunnerConfig,
+        TRunner
+    },
+    strategy::TStrategy
 };
-use crate::data_source::data_manager::SDataManager;
-use crate::data_runtime::asset::{
-    asset::SAssetV2,
-    EAssetType,
-};
-use crate::data_runtime::order::EOrderAction;
-use crate::runner::back_trade::config::SBackTradeRunnerConfig;
-use crate::data_runtime::asset::asset_map::SAssetMap;
-use crate::data_runtime::order::order::{SAddOrder, SOrder};
-use crate::data_source::kline::SKlineUnitData;
-use crate::data_source::trading_pair::ETradingPairType;
-use crate::runner::TRunner;
-use crate::user::SUser;
+use crate::data_runtime::user::SUser;
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
 
@@ -39,7 +43,7 @@ pub enum EBackTradeRunnerError {
 pub struct SBackTradeRunner<D: TDataApi> {
     /// 配置
     pub config: SBackTradeRunnerConfig,
-    /// 数据接口
+    /// 数据管理器
     pub data_manager: SDataManager<D>,
     /// 记录最新的交易对报价
     pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
@@ -57,10 +61,12 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 info!("当前用户:\t{:?}", user.id);
                 info!("用户总资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
                 info!("用户总资产:\t{:?}", user.total_asset());
-                info!("用户可用资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
+                info!("用户可用资产(USDT计价):\t{:?}", self.assets_denominate(&user.available_assets(), EAssetType::Usdt));
                 info!("用户可用资产:\t{:?}", user.available_assets());
-                info!("用户锁定资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
+                info!("用户锁定资产(USDT计价):\t{:?}", self.assets_denominate(&user.locked_assets(), EAssetType::Usdt));
                 info!("用户锁定资产:\t{:?}", user.locked_assets());
+                info!("用户累计手续费(USDT计价):\t{:?}", self.assets_denominate(&user.total_fee(), EAssetType::Usdt));
+                info!("用户累计手续费:\t{:?}", user.total_fee());
                 // 输出所有挂单
                 info!("用户所有挂单:\t{:?}", user.tp_order_map.inner.iter());
             }
@@ -133,10 +139,14 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
 
 impl<D: TDataApi> SBackTradeRunner<D> {
     pub async fn new(config: SBackTradeRunnerConfig, data_manager: SDataManager<D>) -> Self {
+        let mut trading_pair_prices:HashMap<ETradingPairType, Decimal> = HashMap::new();
+        trading_pair_prices.insert(ETradingPairType::BtcUsdtFuture, Decimal::from(1));
+        trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(1));
+        trading_pair_prices.insert(ETradingPairType::BtcUsdCmFuture, Decimal::from(1));
         Self {
             config,
             data_manager,
-            trading_pair_prices: Default::default(),
+            trading_pair_prices,
         }
     }
 
@@ -157,7 +167,6 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         let quote_asset_type = tp_type.get_quote_currency();
         let maker_order_fee = self.config.maker_order_fee;
         let user_asset_manager = &mut user.available_assets;
-
         let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
 
         { // debug
@@ -187,7 +196,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             let base_quantity = order.get_quantity();
             let quote_quantity = order.get_amount();
             // 计算手续费(计价资产)
-            let fee_quote_asset = SAssetV2 {
+            let fee_quote_asset = SAsset {
                 as_type: quote_asset_type,
                 balance: quote_quantity * maker_order_fee,
             };
@@ -197,7 +206,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
                 Ok(consumed_quote_asset) => {
                     // 用户获得基础资产
-                    let obtain_base_asset = SAssetV2 {
+                    let obtain_base_asset = SAsset {
                         as_type: base_asset_type,
                         balance: base_quantity - base_quantity * maker_order_fee,
                     };
@@ -205,6 +214,9 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                     info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &consumed_quote_asset);
 
                     user_asset_manager.merge_asset(obtain_base_asset);
+                    if let Err(e) = order_manager.add_finished_order(order.clone()) {
+                        error!("{:?}", e);
+                    }
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
                 }
                 Err(e) => {
@@ -227,7 +239,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             let mut order = order_manager.pop_lowest_sell_order().unwrap().unwrap();
             let base_quantity = order.get_quantity();
             // 计算手续费(基础资产)
-            let fee_base_asset = SAssetV2 {
+            let fee_base_asset = SAsset {
                 as_type: base_asset_type,
                 balance: base_quantity * maker_order_fee,
             };
@@ -238,7 +250,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
                 Ok(consumed_base_asset) => {
                     // 用户获得计价资产
-                    let obtain_quote_asset = SAssetV2 {
+                    let obtain_quote_asset = SAsset {
                         as_type: quote_asset_type,
                         balance: quote_quantity - quote_quantity * maker_order_fee,
                     };
@@ -246,6 +258,9 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                     info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &consumed_base_asset);
 
                     user_asset_manager.merge_asset(obtain_quote_asset);
+                    if let Err(e) = order_manager.add_finished_order(order.clone()) {
+                        error!("{:?}", e);
+                    }
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
                 }
                 Err(e) => {
@@ -367,7 +382,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                             let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdtFuture).unwrap();
                             let btc_usdt_future_balance = asset.balance;
                             let usdt_balance = btc_usdt_future_balance * price;
-                            let new_asset = SAssetV2 {
+                            let new_asset = SAsset {
                                 as_type: EAssetType::Usdt,
                                 balance: usdt_balance,
                             };
@@ -377,7 +392,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                             let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdCmFuture).unwrap();
                             let btc_usd_cm_future_balance = asset.balance;
                             let btc_balance = btc_usd_cm_future_balance * price;
-                            let new_asset = SAssetV2 {
+                            let new_asset = SAsset {
                                 as_type: EAssetType::Btc,
                                 balance: btc_balance,
                             };

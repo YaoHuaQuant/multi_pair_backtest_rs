@@ -4,13 +4,21 @@ use std::collections::HashMap;
 use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 
-use crate::data_source::db::api::data_api_db::SDataApiDb;
-use crate::data_source::db::api::TDataApi;
-use crate::data_source::db::SDbClickhouse;
-use crate::data_source::funding_rate::SFundingRateData;
-use crate::data_source::trading_pair::ETradingPairType;
-use crate::data_source::trading_pair::trading_pair::STradingPair;
-use crate::data_source::trading_pair::trading_pair_map::{RTradingPairManagerResult, STradingPairMap};
+use crate::{
+    data_source::{
+        db::{
+            api::data_api_db::SDataApiDb,
+            api::TDataApi,
+            SDbClickhouse
+        },
+        funding_rate::SFundingRateData,
+        trading_pair::{
+            ETradingPairType,
+            trading_pair::STradingPair,
+            trading_pair_map::{RTradingPairManagerResult, STradingPairMap}
+        }
+    }
+};
 
 /// 数据管理器
 #[derive(Debug)]

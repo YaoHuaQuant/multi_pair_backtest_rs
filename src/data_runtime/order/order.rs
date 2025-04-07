@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
 use uuid::Uuid;
-use crate::data_runtime::asset::asset::SAssetV2;
+use crate::data_runtime::asset::asset::SAsset;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::order::EOrderAction;
 
@@ -38,7 +38,7 @@ pub enum EOrderError {
     /// 状态校验错误
     StateVerificationError(ExpectedState, ActualState),
     /// 提供的Asset的资产量小于所需的资产量 将资产返回
-    AssetQuantityNotEnoughError(EAssetType, RequiredQuantityDecimal, QuantityDecimal, SAssetV2),
+    AssetQuantityNotEnoughError(EAssetType, RequiredQuantityDecimal, QuantityDecimal, SAsset),
     /// 未锁定Asset
     LockedAssetNotExistError(SOrder),
     /// 成交了一个已存在fee asset的订单
@@ -69,9 +69,9 @@ pub struct SOrder {
     /// 挂单金额（计价资产）
     amount: Decimal,
     /// 锁定的资产对象（买单锁定计价资产 卖单锁定基础资产）
-    locked_asset: Option<SAssetV2>,
+    locked_asset: Option<SAsset>,
     /// 已支付的fee资产对象（只有Executed状态的Order能够持有此对象）
-    paid_fee_asset: Option<SAssetV2>,
+    paid_fee_asset: Option<SAsset>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -141,7 +141,7 @@ impl SOrder {
 
     /// 提交订单 绑定资产
     /// 允许绑定高于订单所需的资产量
-    pub fn submit(&mut self, asset: SAssetV2) -> ROrderResult<()> {
+    pub fn submit(&mut self, asset: SAsset) -> ROrderResult<()> {
         // 状态校验
         self.state_check(EOrderState::Pending)?;
         // 校验资产量
@@ -162,7 +162,7 @@ impl SOrder {
     /// 订单成交
     /// 返回已锁定的资产
     /// 绑定手续费资产
-    pub fn execute(&mut self, paid_fee_asset: Option<SAssetV2>) -> ROrderResult<SAssetV2> {
+    pub fn execute(&mut self, paid_fee_asset: Option<SAsset>) -> ROrderResult<SAsset> {
         // 状态校验
         self.state_check(EOrderState::Unfulfilled)?;
         match &self.paid_fee_asset {
@@ -176,7 +176,7 @@ impl SOrder {
                         self.state = EOrderState::Executed;
                         self.paid_fee_asset = Some(match paid_fee_asset {
                             None => {
-                                SAssetV2 {
+                                SAsset {
                                     as_type: asset.as_type,
                                     balance: Decimal::from(0),
                                 }
@@ -192,7 +192,7 @@ impl SOrder {
 
     /// 订单取消
     /// 释放已锁定的资产
-    pub fn cancel(&mut self) -> Option<SAssetV2> {
+    pub fn cancel(&mut self) -> Option<SAsset> {
         self.state = EOrderState::Canceled;
         self.locked_asset.take()
     }
@@ -222,11 +222,11 @@ impl SOrder {
         self.amount
     }
 
-    pub fn get_locked_asset(&self) -> &Option<SAssetV2> {
+    pub fn get_locked_asset(&self) -> &Option<SAsset> {
         &self.locked_asset
     }
 
-    pub fn get_paid_fee_asset(&self) -> &Option<SAssetV2> {
+    pub fn get_paid_fee_asset(&self) -> &Option<SAsset> {
         &self.paid_fee_asset
     }
     // endregion ----- get函数 -----
@@ -235,7 +235,7 @@ impl SOrder {
 #[cfg(test)]
 mod tests {
     use rust_decimal::prelude::*;
-    use crate::data_runtime::asset::asset::SAssetV2;
+    use crate::data_runtime::asset::asset::SAsset;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::order::order::{EOrderError, EOrderState, EOrderUpdate, SOrder};
 
@@ -247,7 +247,7 @@ mod tests {
 
     fn get_unfulfilled_data() -> SOrder {
         let mut order = get_pending_data();
-        let asset = SAssetV2 {
+        let asset = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("31.4159260").unwrap(),
         };
@@ -289,7 +289,7 @@ mod tests {
     pub fn test_submit_fail_state_error() {
         let mut order = get_pending_data();
         order.state = EOrderState::Executed;
-        let asset = SAssetV2 {
+        let asset = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("10").unwrap(),
         };
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     pub fn test_submit_fail_quantity_not_enough() {
         let mut order = get_pending_data();
-        let asset = SAssetV2 {
+        let asset = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("10").unwrap(),
         };
@@ -317,7 +317,7 @@ mod tests {
         if let Err(EOrderError::AssetQuantityNotEnoughError(o, a, b, c)) = r {
             assert_eq!(a, Decimal::from_str("31.415926").unwrap());
             assert_eq!(b, Decimal::from_str("10").unwrap());
-            let SAssetV2 { as_type, balance } = c;
+            let SAsset { as_type, balance } = c;
             assert_eq!(as_type, EAssetType::Usdt);
             assert_eq!(balance, Decimal::from_str("10").unwrap());
         }
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     pub fn test_submit_success() {
         let mut order = get_pending_data();
-        let asset = SAssetV2 {
+        let asset = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("50").unwrap(),
         };
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     pub fn test_execute_fail_with_fee_error() {
         let mut order = get_unfulfilled_data();
-        order.paid_fee_asset = Some(SAssetV2 { as_type: EAssetType::Usdt, balance: Decimal::from(1) });
+        order.paid_fee_asset = Some(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(1) });
         let r = order.execute(None);
         assert!(r.is_err());
         assert!(matches!(r, Err(EOrderError::ExecuteOrderWithFeeAssetError(_))));
@@ -371,7 +371,7 @@ mod tests {
         let mut order = get_unfulfilled_data();
         let r = order.execute(None);
         assert!(r.is_ok());
-        let SAssetV2 { as_type, balance } = r.unwrap();
+        let SAsset { as_type, balance } = r.unwrap();
         assert_eq!(as_type, EAssetType::Usdt);
         assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
     }
@@ -381,7 +381,7 @@ mod tests {
         let mut order = get_unfulfilled_data();
         let r = order.cancel();
         assert!(r.is_some());
-        let SAssetV2 { as_type, balance } = r.unwrap();
+        let SAsset { as_type, balance } = r.unwrap();
         assert_eq!(as_type, EAssetType::Usdt);
         assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
     }

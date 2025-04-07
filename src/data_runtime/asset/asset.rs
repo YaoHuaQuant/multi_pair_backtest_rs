@@ -4,7 +4,7 @@ use crate::data_runtime::asset::EAssetType;
 
 /// 资产对象
 #[derive(Debug, Clone)]
-pub struct SAssetV2 {
+pub struct SAsset {
     /// 资产类型
     pub as_type: EAssetType,
     /// 资产余额
@@ -22,10 +22,10 @@ pub enum EAssetV2Error {
     /// 可用额度不足(可用额度，所需额度)
     BalanceNotEnough(RemainBalance, RequireBalance),
     /// 资产类型不匹配
-    AssetTypeInconsistentError(EAssetType, EAssetType, SAssetV2),
+    AssetTypeInconsistentError(EAssetType, EAssetType, SAsset),
 }
 
-impl SAssetV2 {
+impl SAsset {
     pub fn new(as_type: EAssetType) -> Self {
         Self {
             as_type,
@@ -35,7 +35,7 @@ impl SAssetV2 {
 
     /// 合并另一个相同类型的资产到当前资产
     /// 如果执行出错，则可以在Err中获取到输入参数，避免asset资产被消耗
-    pub fn merge(&mut self, other: SAssetV2) -> RAssetV2Result<()> {
+    pub fn merge(&mut self, other: SAsset) -> RAssetV2Result<()> {
         if self.as_type == other.as_type {
             self.balance += other.balance;
             Ok(())
@@ -59,7 +59,7 @@ impl SAssetV2 {
 }
 
 
-impl AddAssign for SAssetV2 {
+impl AddAssign for SAsset {
     fn add_assign(&mut self, rhs: Self) {
         self.balance += rhs.balance
     }
@@ -68,13 +68,13 @@ impl AddAssign for SAssetV2 {
 #[cfg(test)]
 mod tests {
     use rust_decimal::Decimal;
-    use crate::data_runtime::asset::asset::{EAssetV2Error, SAssetV2};
+    use crate::data_runtime::asset::asset::{EAssetV2Error, SAsset};
     use crate::data_runtime::asset::EAssetType;
 
     #[test]
     pub fn test() {
         // test new
-        let mut asset1 = SAssetV2{
+        let mut asset1 = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from(100),
         };
@@ -101,7 +101,7 @@ mod tests {
         assert_eq!(asset1.balance, Decimal::from(100));
 
         // tes merge fail
-        let asset4 = SAssetV2{
+        let asset4 = SAsset {
             as_type: EAssetType::Btc,
             balance: Decimal::from(1),
         };

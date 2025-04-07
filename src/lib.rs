@@ -4,6 +4,5 @@ pub mod data_runtime;
 pub mod strategy;
 pub mod protocol;
 pub mod utils;
-pub mod user;
 pub mod script;
 pub mod config;

@@ -78,7 +78,7 @@ mod tests {
         let now = Local::now();
         let from = now - chrono::Duration::hours(24 * 200);
         let to = now - chrono::Duration::hours(24 * 200) + chrono::Duration::minutes(100);
-        let data = SKlineBtcUSDT1mDao::select_range(&db, from, to).await;
+        let data = SKlineBtcUSDT1mDao::select_range(&db, &from, &to).await;
 
         match data {
             Ok(data) => {
@@ -96,7 +96,7 @@ mod tests {
         let now = Local::now();
         let from = now - chrono::Duration::hours(24 * 200);
         let to = now - chrono::Duration::hours(24 * 200) + chrono::Duration::minutes(3);
-        let data = SKlineBtcUSDT1mDao::select_range(&db, from, to).await?;
+        let data = SKlineBtcUSDT1mDao::select_range(&db, &from, &to).await?;
 
         let kline: SKlineData = data.into();
         println!("{:?}", kline);

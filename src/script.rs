@@ -4,15 +4,25 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use tokio::runtime::Runtime;
 
-use crate::config::{config_date_from, config_date_to, INIT_BALANCE_BTC, INIT_BALANCE_USDT, MAKER_ORDER_FEE, TAKER_ORDER_FEE};
-use crate::data_source::data_manager::SDataManager;
-use crate::data_source::db::api::data_api_db::SDataApiDb;
-use crate::runner::back_trade::config::SBackTradeRunnerConfig;
-use crate::runner::back_trade::runner::SBackTradeRunner;
-use crate::runner::TRunner;
-use crate::strategy::strategy_mk_test::SStrategyMkTest;
-use crate::strategy::TStrategy;
-use crate::user::{SUser, SUserConfig};
+use crate::{
+    data_source::{
+        db::api::data_api_db::SDataApiDb,
+        data_manager::SDataManager
+    },
+    config::*,
+    runner::{
+        back_trade::{
+            config::SBackTradeRunnerConfig,
+            runner::SBackTradeRunner
+        },
+        TRunner
+    },
+    strategy::{
+        strategy_mk_test::SStrategyMkTest,
+        TStrategy
+    },
+    data_runtime::user::{SUser, SUserConfig}
+};
 
 pub struct SScript<R, S>
 where
