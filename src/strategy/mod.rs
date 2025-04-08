@@ -1,9 +1,11 @@
 pub mod strategy_mk_test;
+pub mod mk1;
 
-use crate::protocol::{ERunnerParseActionResult, EStrategyAction, SRunnerParseResult};
+use crate::data_source::trading_pair::ETradingPairType;
+use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult};
 
 /// 策略接口
 pub trait TStrategy {
-    fn run(&mut self, runner_parse_result: SRunnerParseResult) -> Vec<EStrategyAction>;
-    fn verify(&mut self, parse_action_results: Vec<ERunnerParseActionResult>);
+    fn run(&mut self, runner_parse_result: SRunnerParseKlineResult) -> Vec<EStrategyAction>;
+    fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>);
 }

@@ -8,14 +8,20 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
 
-use crate::config::{INIT_BALANCE_BTC, INIT_BALANCE_USDT};
-use crate::data_runtime::asset::asset::SAsset;
-use crate::data_runtime::asset::asset_map::SAssetMap;
-use crate::data_runtime::asset::EAssetType;
-use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
-use crate::data_source::trading_pair::ETradingPairType;
-use crate::protocol::{ERunnerParseActionResult, EStrategyAction, SRunnerParseResult};
-use crate::strategy::TStrategy;
+use crate::{
+    data_runtime::{
+        asset::{
+            asset::SAsset,
+            asset_map::SAssetMap,
+            EAssetType
+        },
+        order::trading_pair_order_manager_map::STradingPairOrderManagerMap
+    },
+    config::{INIT_BALANCE_BTC, INIT_BALANCE_USDT},
+    data_source::trading_pair::ETradingPairType,
+    protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult},
+    strategy::TStrategy
+};
 
 #[derive(Debug)]
 pub struct SUserConfig {
@@ -67,14 +73,14 @@ impl<S: TStrategy> SUser<S> {
         }
     }
 
-    /// 将增量数据传输给策略模块，获取策略行为。
-    pub fn get_strategy_result(&mut self, runner_parse_result: SRunnerParseResult) -> Vec<EStrategyAction> {
+    /// 将执行器的处理结果反馈给策略模块 获取策略Action结果
+    pub fn get_strategy_result(&mut self, runner_parse_result: SRunnerParseKlineResult) -> Vec<EStrategyAction> {
         self.strategy.run(runner_parse_result)
     }
 
-    /// 向策略模块反馈校验、调整结果
-    pub fn response_verify_result(&mut self, runner_parse_action_results: Vec<ERunnerParseActionResult>) {
-        self.strategy.verify(runner_parse_action_results)
+    /// 向策略模块反馈同步结果
+    pub fn verify_sync_result(&mut self, tp_type: &ETradingPairType, runner_parse_action_results: Vec<ERunnerSyncActionResult>) {
+        self.strategy.verify(tp_type, runner_parse_action_results)
     }
 
     /// 累计用户的总资产

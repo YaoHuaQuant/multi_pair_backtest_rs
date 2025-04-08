@@ -19,7 +19,7 @@ use crate::{
         kline::SKlineUnitData,
         trading_pair::ETradingPairType
     },
-    protocol::{ERunnerParseActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseResult},
+    protocol::{ERunnerSyncActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseKlineResult},
     runner::{
         back_trade::config::SBackTradeRunnerConfig,
         TRunner
@@ -27,6 +27,7 @@ use crate::{
     strategy::TStrategy
 };
 use crate::data_runtime::user::SUser;
+use crate::protocol::SStrategyOrderAdd;
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
 
@@ -93,8 +94,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
 
 
                 for user in users.iter_mut() {
-                    match self.parse_trading_pair_kline(
-                        &current_date,
+                    match self.parse_new_kline(
                         tp_type,
                         &kline_unit_data,
                         funding_rate,
@@ -114,13 +114,13 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                             }
 
                             // 根据策略行为，调整订单数据。
-                            let parse_action_results = self.action_verify_update(
+                            let parse_action_results = self.sync_strategy_action(
                                 strategy_actions,
                                 tp_type,
                                 user,
                             );
                             // 向策略模块反馈校验、调整结果
-                            user.strategy.verify(parse_action_results);
+                            user.strategy.verify(tp_type, parse_action_results);
                         }
                     }
                 }
@@ -152,14 +152,13 @@ impl<D: TDataApi> SBackTradeRunner<D> {
 
 
     /// 处理新的k线和资金费率，更新订单和资产，记录增量处理结果。
-    fn parse_trading_pair_kline<S: TStrategy>(
+    fn parse_new_kline<S: TStrategy>(
         &self,
-        current_date: &DateTime<Local>,
         tp_type: &ETradingPairType,
         kline_unit_data: &SKlineUnitData,
         funding_rate: Decimal,
         user: &mut SUser<S>,
-    ) -> RBackTradeRunnerResult<SRunnerParseResult>
+    ) -> RBackTradeRunnerResult<SRunnerParseKlineResult>
     {
         // 根据K线 结算订单数据 结算资产数据
         let mut order_results: Vec<ERunnerParseOrderResult> = Vec::new(); // 订单已成交列表
@@ -167,7 +166,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         let quote_asset_type = tp_type.get_quote_currency();
         let maker_order_fee = self.config.maker_order_fee;
         let user_asset_manager = &mut user.available_assets;
-        let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
+        let order_manager = user.tp_order_map.get_mut(tp_type).unwrap();
 
         { // debug
             let highest_buy_price = match order_manager.peek_highest_buy_order().unwrap() {
@@ -214,10 +213,10 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                     info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &consumed_quote_asset);
 
                     user_asset_manager.merge_asset(obtain_base_asset);
-                    if let Err(e) = order_manager.add_finished_order(order.clone()) {
+                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
+                    if let Err(e) = order_manager.add_finished_order(order) {
                         error!("{:?}", e);
                     }
-                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
                 }
                 Err(e) => {
                     error!("{:?}", e);
@@ -258,10 +257,10 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                     info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &consumed_base_asset);
 
                     user_asset_manager.merge_asset(obtain_quote_asset);
-                    if let Err(e) = order_manager.add_finished_order(order.clone()) {
+                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
+                    if let Err(e) = order_manager.add_finished_order(order) {
                         error!("{:?}", e);
                     }
-                    order_results.push(ERunnerParseOrderResult::OrderExecuted(order));
                 }
                 Err(e) => {
                     error!("{:?}", e);
@@ -270,8 +269,8 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         }
 
         // 将k线和订单结算结果 用于反馈给strategy
-        let runner_parse_result = SRunnerParseResult {
-            date_time: current_date.clone(),
+        let runner_parse_result = SRunnerParseKlineResult {
+            tp_type:tp_type.clone(),
             new_kline: kline_unit_data.clone(),
             new_funding_rate: funding_rate,
             order_result: order_results,
@@ -280,24 +279,24 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         Ok(runner_parse_result)
     }
 
-    /// 根据策略行为，调整订单数据。
-    fn action_verify_update<S: TStrategy>(
+    /// 根据策略行为，同步订单数据。
+    fn sync_strategy_action<S: TStrategy>(
         &self,
         strategy_actions: Vec<EStrategyAction>,
         tp_type: &ETradingPairType,
         user: &mut SUser<S>,
-    ) -> Vec<ERunnerParseActionResult>
+    ) -> Vec<ERunnerSyncActionResult>
     {
         let user_asset_manager = &mut user.available_assets;
-        let order_manager = user.tp_order_map.get_mut(tp_type).unwrap(); // todo 异常处理
+        let order_manager = user.tp_order_map.get_mut(tp_type).unwrap();
         let base_asset_type = tp_type.get_base_currency();
         let quote_asset_type = tp_type.get_quote_currency();
 
 
         // 根据策略行为，校验、调整订单数据。
-        let mut parse_action_result: Vec<ERunnerParseActionResult> = Vec::new();
+        let mut parse_action_result: Vec<ERunnerSyncActionResult> = Vec::new();
         // 根据action类型进行分类 之后进行分批批处理
-        let mut add_orders: Vec<SAddOrder> = Vec::new();
+        let mut add_orders: Vec<SStrategyOrderAdd> = Vec::new();
         let mut cancel_orders: Vec<Uuid> = Vec::new();
 
         for action in strategy_actions {
@@ -332,7 +331,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         if let Err(e) = user_asset.merge(asset) {
                             error!("Error: {:?}", e);
                         }
-                        parse_action_result.push(ERunnerParseActionResult::OrderCanceled(order));
+                        parse_action_result.push(ERunnerSyncActionResult::OrderCanceled(order));
                     }
                 }
             }
@@ -361,7 +360,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 if let Err(e) = order_manager.insert_order(new_order.clone()) {
                     error!("Error: {:?}", e);
                 }
-                parse_action_result.push(ERunnerParseActionResult::OrderPlaced(new_order));
+                parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order));
             }
             // info!("Finish: add_order");
         }

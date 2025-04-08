@@ -4,8 +4,9 @@ use log::info;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::data_runtime::order::EOrderAction;
-use crate::protocol::{ERunnerParseActionResult, EStrategyAction, SRunnerParseResult};
+use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
 use crate::data_runtime::order::order::SAddOrder;
+use crate::data_source::trading_pair::ETradingPairType;
 use crate::strategy::TStrategy;
 
 /// 测试用策略
@@ -14,16 +15,22 @@ pub struct SStrategyMkTest {
     pub remove_list: VecDeque<Uuid>,
 }
 
-impl SStrategyMkTest{
+impl SStrategyMkTest {
     pub fn new() -> Self {
         Self { remove_list: Default::default() }
     }
 }
 
 impl TStrategy for SStrategyMkTest {
-    fn run(&mut self, runner_parse_result: SRunnerParseResult) -> Vec<EStrategyAction> {
+    fn run(&mut self, runner_parse_result: SRunnerParseKlineResult) -> Vec<EStrategyAction> {
+        let SRunnerParseKlineResult {
+            tp_type,
+            new_kline: kline_unit,
+            new_funding_rate: _,
+            order_result
+        } = runner_parse_result;
         // 输出执行器结果
-        for order_result in runner_parse_result.order_result {
+        for order_result in order_result {
             info!("strategy receive order result:\t{:?}", order_result)
         }
 
@@ -34,13 +41,16 @@ impl TStrategy for SStrategyMkTest {
             result.push(EStrategyAction::CancelOrder(uuid));
         }
 
-        let kline_unit = runner_parse_result.new_kline;
-        let action_new_order1 = SAddOrder {
+        let action_new_order1 = SStrategyOrderAdd {
+            id: Default::default(),
+            tp_type,
             action: EOrderAction::Buy,
             price: kline_unit.low_price,
             quantity: Decimal::from_str("0.1").unwrap(),
         };
-        let action_new_order2 = SAddOrder {
+        let action_new_order2 = SStrategyOrderAdd {
+            id: Default::default(),
+            tp_type,
             action: EOrderAction::Sell,
             price: kline_unit.high_price,
             quantity: Decimal::from_str("0.1").unwrap(),
@@ -50,17 +60,17 @@ impl TStrategy for SStrategyMkTest {
         result
     }
 
-    fn verify(&mut self, parse_action_results: Vec<ERunnerParseActionResult>) {
+    fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>) {
         for result in parse_action_results {
             info!("strategy verify:\t{:?}", result);
             match result {
-                ERunnerParseActionResult::OrderPlaced(order) => {
+                ERunnerSyncActionResult::OrderPlaced(order) => {
                     match order.get_action() {
-                        EOrderAction::Buy => {self.remove_list.push_back(order.get_id())}
+                        EOrderAction::Buy => { self.remove_list.push_back(order.get_id()) }
                         EOrderAction::Sell => {}
                     }
                 }
-                ERunnerParseActionResult::OrderCanceled(_) => {}
+                ERunnerSyncActionResult::OrderCanceled(_) => {}
             }
         }
     }
