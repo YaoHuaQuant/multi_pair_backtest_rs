@@ -112,9 +112,9 @@ mod tests {
     pub fn test_calculate_total_assets() {
         let data = get_test_data();
         let asset_map = data.calculate_total_assets();
-        let pair_btc_usdt = asset_map.get(EAssetType::Usdt);
-        let pair_btc_btc = asset_map.get(EAssetType::Btc);
-        let pair_btc_btc_usdt_future = asset_map.get(EAssetType::BtcUsdtFuture);
+        let pair_btc_usdt = asset_map.get(&EAssetType::Usdt);
+        let pair_btc_btc = asset_map.get(&EAssetType::Btc);
+        let pair_btc_btc_usdt_future = asset_map.get(&EAssetType::BtcUsdtFuture);
         assert!(pair_btc_usdt.is_ok());
         assert_eq!(pair_btc_usdt.unwrap().balance, Decimal::from(21));
         assert!(pair_btc_btc.is_ok());

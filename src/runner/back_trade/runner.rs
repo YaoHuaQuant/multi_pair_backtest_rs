@@ -11,23 +11,26 @@ use crate::{
         },
         asset::asset_map::SAssetMap,
         order::EOrderAction,
-        order::order::{SAddOrder, SOrder}
+        order::order::{SAddOrder, SOrder},
     },
     data_source::{
         data_manager::SDataManager,
         db::api::TDataApi,
         kline::SKlineUnitData,
-        trading_pair::ETradingPairType
+        trading_pair::ETradingPairType,
     },
     protocol::{ERunnerSyncActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseKlineResult},
     runner::{
         back_trade::config::SBackTradeRunnerConfig,
-        TRunner
+        TRunner,
     },
-    strategy::TStrategy
+    strategy::TStrategy,
 };
 use crate::data_runtime::user::SUser;
 use crate::protocol::SStrategyOrderAdd;
+use crate::runner::logger::data_logger::SDataLogger;
+use crate::runner::logger::kline_unit::SDataLogKlineUnit;
+use crate::runner::logger::user_unit::SDataLogUserUnit;
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
 
@@ -47,7 +50,9 @@ pub struct SBackTradeRunner<D: TDataApi> {
     /// 数据管理器
     pub data_manager: SDataManager<D>,
     /// 记录最新的交易对报价
-    pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
+    // pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
+    /// 数据日志
+    pub data_logger: SDataLogger,
 }
 
 impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
@@ -57,20 +62,24 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
         while current_date < self.config.date_to {
             info!("当前k线时间:\t{}", current_date);
 
-            for user in users.iter() {
-                // 输出用户当前资产状况
-                info!("当前用户:\t{:?}", user.id);
-                info!("用户总资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
-                info!("用户总资产:\t{:?}", user.total_asset());
-                info!("用户可用资产(USDT计价):\t{:?}", self.assets_denominate(&user.available_assets(), EAssetType::Usdt));
-                info!("用户可用资产:\t{:?}", user.available_assets());
-                info!("用户锁定资产(USDT计价):\t{:?}", self.assets_denominate(&user.locked_assets(), EAssetType::Usdt));
-                info!("用户锁定资产:\t{:?}", user.locked_assets());
-                info!("用户累计手续费(USDT计价):\t{:?}", self.assets_denominate(&user.total_fee(), EAssetType::Usdt));
-                info!("用户累计手续费:\t{:?}", user.total_fee());
-                // 输出所有挂单
-                info!("用户所有挂单:\t{:?}", user.tp_order_map.inner.iter());
-            }
+            // 用于记录报价
+            let mut trading_pair_klines: HashMap<ETradingPairType, SKlineUnitData> = HashMap::new();
+            let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
+
+            // for user in users.iter() {
+            //     // 输出用户当前资产状况
+            //     info!("当前用户:\t{:?}", user.id);
+            //     info!("用户总资产(USDT计价):\t{:?}", self.assets_denominate(&user.total_asset(), EAssetType::Usdt));
+            //     info!("用户总资产:\t{:?}", user.total_asset());
+            //     info!("用户可用资产(USDT计价):\t{:?}", self.assets_denominate(&user.available_assets(), EAssetType::Usdt));
+            //     info!("用户可用资产:\t{:?}", user.available_assets());
+            //     info!("用户锁定资产(USDT计价):\t{:?}", self.assets_denominate(&user.locked_assets(), EAssetType::Usdt));
+            //     info!("用户锁定资产:\t{:?}", user.locked_assets());
+            //     info!("用户累计手续费(USDT计价):\t{:?}", self.assets_denominate(&user.total_fee(), EAssetType::Usdt));
+            //     info!("用户累计手续费:\t{:?}", user.total_fee());
+            //     // 输出所有挂单
+            //     info!("用户所有挂单:\t{:?}", user.tp_order_map.inner.iter());
+            // }
 
             // 在单分钟k线内遍历所有交易对
             for (tp_type, trading_pair) in self.data_manager.trading_pair_map.inner.iter() {
@@ -87,11 +96,11 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
 
                 log::debug!("K线信息 - 交易对: {:?}\t开盘价:{}\t收盘价:{}\t最高价:{}\t最低价:{}\t资金费率:{}", tp_type, kline_unit_data.open_price, kline_unit_data.close_price, kline_unit_data.high_price, kline_unit_data.low_price, funding_rate);
 
-                // 记录报价
-                self.trading_pair_prices.entry(tp_type.clone())
+                // 记录日志
+                trading_pair_klines.insert(tp_type.clone(), kline_unit_data);
+                trading_pair_prices.entry(tp_type.clone())
                     .and_modify(|e| *e = kline_unit_data.close_price)
-                    .or_insert(Decimal::from(0));
-
+                    .or_insert(kline_unit_data.close_price);
 
                 for user in users.iter_mut() {
                     match self.parse_new_kline(
@@ -126,27 +135,29 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 }
             }
 
+            // 记录日志
+            self.data_logger.add_kline_data(SDataLogKlineUnit::new(current_date, trading_pair_klines));
+            for user in users.iter() {
+                self.data_logger.add_user_data(SDataLogUserUnit::new(current_date, user, None, &trading_pair_prices));
+            }
 
             // 时间递增 1 分钟
             current_date += Duration::minutes(1);
 
             // thread::sleep(std::time::Duration::from_secs(2));
         }
-        // todo 回测结束 输出结果
+        // 回测结束 输出结果
+        self.data_logger.output_user(String::from(format!("data/back_trade/{}.csv", Local::now().format("%Y-%m-%d_%H_%M_%S"))));
         ()
     }
 }
 
 impl<D: TDataApi> SBackTradeRunner<D> {
     pub async fn new(config: SBackTradeRunnerConfig, data_manager: SDataManager<D>) -> Self {
-        let mut trading_pair_prices:HashMap<ETradingPairType, Decimal> = HashMap::new();
-        trading_pair_prices.insert(ETradingPairType::BtcUsdtFuture, Decimal::from(1));
-        trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(1));
-        trading_pair_prices.insert(ETradingPairType::BtcUsdCmFuture, Decimal::from(1));
         Self {
             config,
             data_manager,
-            trading_pair_prices,
+            data_logger: Default::default(),
         }
     }
 
@@ -270,7 +281,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
 
         // 将k线和订单结算结果 用于反馈给strategy
         let runner_parse_result = SRunnerParseKlineResult {
-            tp_type:tp_type.clone(),
+            tp_type: tp_type.clone(),
             new_kline: kline_unit_data.clone(),
             new_funding_rate: funding_rate,
             order_result: order_results,
@@ -368,64 +379,64 @@ impl<D: TDataApi> SBackTradeRunner<D> {
     }
 
 
-    /// 以给定资产类型对资产进行计
-    fn assets_denominate(&self, assets: &SAssetMap, target_as_type: EAssetType) -> RBackTradeRunnerResult<Decimal> {
-        match target_as_type {
-            EAssetType::Usdt | EAssetType::Btc => {
-                // 先转换为usdt+btc
-                let mut tmp = SAssetMap::new();
-                for (_, asset) in assets.inner.iter() {
-                    match asset.as_type {
-                        EAssetType::Usdt | EAssetType::Btc => { tmp.merge_asset(asset.clone()) }
-                        EAssetType::BtcUsdtFuture => {
-                            let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdtFuture).unwrap();
-                            let btc_usdt_future_balance = asset.balance;
-                            let usdt_balance = btc_usdt_future_balance * price;
-                            let new_asset = SAsset {
-                                as_type: EAssetType::Usdt,
-                                balance: usdt_balance,
-                            };
-                            tmp.merge_asset(new_asset)
-                        }
-                        EAssetType::BtcUsdCmFuture => {
-                            let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdCmFuture).unwrap();
-                            let btc_usd_cm_future_balance = asset.balance;
-                            let btc_balance = btc_usd_cm_future_balance * price;
-                            let new_asset = SAsset {
-                                as_type: EAssetType::Btc,
-                                balance: btc_balance,
-                            };
-                            tmp.merge_asset(new_asset)
-                        }
-                    }
-                }
-                // 再根据target_as_type进行转换
-                let mut result = Decimal::from(0);
-                let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdt).unwrap();
-                for (_, asset) in tmp.inner.iter() {
-                    match asset.as_type {
-                        EAssetType::Usdt => {
-                            if target_as_type == EAssetType::Btc {
-                                result += asset.balance / price
-                            } else {
-                                result += asset.balance;
-                            }
-                        }
-                        EAssetType::Btc => {
-                            if target_as_type == EAssetType::Usdt {
-                                result += asset.balance * price
-                            } else {
-                                result += asset.balance;
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(result)
-            }
-            _ => { Err(EBackTradeRunnerError::DenominateSupportOnlyBtcAndUsdtError(target_as_type)) }
-        }
-    }
+    // /// 以给定资产类型对资产进行计
+    // fn assets_denominate(&self, assets: &SAssetMap, target_as_type: EAssetType) -> RBackTradeRunnerResult<Decimal> {
+    //     match target_as_type {
+    //         EAssetType::Usdt | EAssetType::Btc => {
+    //             // 先转换为usdt+btc
+    //             let mut tmp = SAssetMap::new();
+    //             for (_, asset) in assets.inner.iter() {
+    //                 match asset.as_type {
+    //                     EAssetType::Usdt | EAssetType::Btc => { tmp.merge_asset(asset.clone()) }
+    //                     EAssetType::BtcUsdtFuture => {
+    //                         let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdtFuture).unwrap();
+    //                         let btc_usdt_future_balance = asset.balance;
+    //                         let usdt_balance = btc_usdt_future_balance * price;
+    //                         let new_asset = SAsset {
+    //                             as_type: EAssetType::Usdt,
+    //                             balance: usdt_balance,
+    //                         };
+    //                         tmp.merge_asset(new_asset)
+    //                     }
+    //                     EAssetType::BtcUsdCmFuture => {
+    //                         let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdCmFuture).unwrap();
+    //                         let btc_usd_cm_future_balance = asset.balance;
+    //                         let btc_balance = btc_usd_cm_future_balance * price;
+    //                         let new_asset = SAsset {
+    //                             as_type: EAssetType::Btc,
+    //                             balance: btc_balance,
+    //                         };
+    //                         tmp.merge_asset(new_asset)
+    //                     }
+    //                 }
+    //             }
+    //             // 再根据target_as_type进行转换
+    //             let mut result = Decimal::from(0);
+    //             let price = self.trading_pair_prices.get(&ETradingPairType::BtcUsdt).unwrap();
+    //             for (_, asset) in tmp.inner.iter() {
+    //                 match asset.as_type {
+    //                     EAssetType::Usdt => {
+    //                         if target_as_type == EAssetType::Btc {
+    //                             result += asset.balance / price
+    //                         } else {
+    //                             result += asset.balance;
+    //                         }
+    //                     }
+    //                     EAssetType::Btc => {
+    //                         if target_as_type == EAssetType::Usdt {
+    //                             result += asset.balance * price
+    //                         } else {
+    //                             result += asset.balance;
+    //                         }
+    //                     }
+    //                     _ => {}
+    //                 }
+    //             }
+    //             Ok(result)
+    //         }
+    //         _ => { Err(EBackTradeRunnerError::DenominateSupportOnlyBtcAndUsdtError(target_as_type)) }
+    //     }
+    // }
 }
 
 

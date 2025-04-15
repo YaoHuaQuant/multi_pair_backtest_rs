@@ -1,5 +1,6 @@
 pub mod strategy_mk_test;
 pub mod mk1;
+pub mod mk2;
 
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult};

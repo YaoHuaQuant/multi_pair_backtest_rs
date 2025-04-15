@@ -5,6 +5,7 @@ use crate::strategy::TStrategy;
 use crate::data_runtime::user::SUser;
 
 pub mod back_trade;
+pub mod logger;
 
 pub trait TRunner<S: TStrategy> {
     fn run(&mut self, users: &mut Vec<SUser<S>>);

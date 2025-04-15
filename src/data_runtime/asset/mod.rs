@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 pub mod asset;
 pub mod asset_map;
 

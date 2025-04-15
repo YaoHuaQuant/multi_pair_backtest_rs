@@ -392,13 +392,13 @@ mod tests {
 
         let r = manager.calculate_total_assets();
         println!("result:{:?}", r);
-        let usdt = r.get(EAssetType::Usdt);
+        let usdt = r.get(&EAssetType::Usdt);
         assert!(usdt.is_ok());
         let SAsset { balance, as_type } = usdt.unwrap();
         assert_eq!(*balance, Decimal::from(12));
         assert_eq!(*as_type, EAssetType::Usdt);
 
-        let btc = r.get(EAssetType::Btc);
+        let btc = r.get(&EAssetType::Btc);
         assert!(btc.is_ok());
         let SAsset { balance, as_type } = btc.unwrap();
         assert_eq!(*balance, Decimal::from(5));
@@ -434,14 +434,14 @@ mod tests {
 
         let r1 = manager.calculate_total_assets();
         println!("result:{:?}", r1);
-        let usdt = r1.get(EAssetType::Usdt);
+        let usdt = r1.get(&EAssetType::Usdt);
         assert!(usdt.is_ok());
         assert_eq!(usdt.unwrap().balance, Decimal::from(12));
 
         let r2 = manager.pop_highest_buy_order().unwrap().unwrap();
         let r1 = manager.calculate_total_assets();
         assert_eq!(r2.get_locked_asset().clone().unwrap().balance, Decimal::from_str("5").unwrap());
-        assert_eq!(r1.get(EAssetType::Usdt).unwrap().balance, Decimal::from(7));
+        assert_eq!(r1.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(7));
     }
 
     #[test]
@@ -473,14 +473,14 @@ mod tests {
 
         let r1 = manager.calculate_total_assets();
         println!("result:{:?}", r1);
-        let btc = r1.get(EAssetType::Btc);
+        let btc = r1.get(&EAssetType::Btc);
         assert!(btc.is_ok());
         assert_eq!(btc.unwrap().balance, Decimal::from(33));
 
         let r2 = manager.pop_lowest_sell_order().unwrap().unwrap();
         let r1 = manager.calculate_total_assets();
         assert_eq!(r2.get_locked_asset().clone().unwrap().balance, Decimal::from_str("5").unwrap());
-        assert_eq!(r1.get(EAssetType::Btc).unwrap().balance, Decimal::from(28));
+        assert_eq!(r1.get(&EAssetType::Btc).unwrap().balance, Decimal::from(28));
     }
 
     #[test]
@@ -535,47 +535,47 @@ mod tests {
 
         let asset_total = manager.calculate_total_assets();
         println!("result:{:?}", asset_total);
-        let asset_btc = asset_total.get(EAssetType::Btc);
+        let asset_btc = asset_total.get(&EAssetType::Btc);
         assert!(asset_btc.is_ok());
         assert_eq!(asset_btc.unwrap().balance, Decimal::from(33));
-        let asset_usdt = asset_total.get(EAssetType::Usdt);
+        let asset_usdt = asset_total.get(&EAssetType::Usdt);
         assert!(asset_usdt.is_ok());
         assert_eq!(asset_usdt.unwrap().balance, Decimal::from(12));
 
         let pop_sell = manager.pop_lowest_sell_order().unwrap().unwrap();
         let asset_total = manager.calculate_total_assets();
         assert_eq!(pop_sell.get_locked_asset().clone().unwrap().balance, Decimal::from_str("5").unwrap());
-        assert_eq!(asset_total.get(EAssetType::Btc).unwrap().balance, Decimal::from(28));
-        assert_eq!(asset_total.get(EAssetType::Usdt).unwrap().balance, Decimal::from(12));
+        assert_eq!(asset_total.get(&EAssetType::Btc).unwrap().balance, Decimal::from(28));
+        assert_eq!(asset_total.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(12));
 
         let pop_sell = manager.pop_lowest_sell_order().unwrap().unwrap();
         let asset_total = manager.calculate_total_assets();
         assert_eq!(pop_sell.get_locked_asset().clone().unwrap().balance, Decimal::from_str("5").unwrap());
-        assert_eq!(asset_total.get(EAssetType::Btc).unwrap().balance, Decimal::from(23));
-        assert_eq!(asset_total.get(EAssetType::Usdt).unwrap().balance, Decimal::from(12));
+        assert_eq!(asset_total.get(&EAssetType::Btc).unwrap().balance, Decimal::from(23));
+        assert_eq!(asset_total.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(12));
 
         let pop_sell = manager.pop_lowest_sell_order().unwrap().unwrap();
         let asset_total = manager.calculate_total_assets();
         assert_eq!(pop_sell.get_locked_asset().clone().unwrap().balance, Decimal::from_str("5").unwrap());
-        assert_eq!(asset_total.get(EAssetType::Btc).unwrap().balance, Decimal::from(18));
-        assert_eq!(asset_total.get(EAssetType::Usdt).unwrap().balance, Decimal::from(12));
+        assert_eq!(asset_total.get(&EAssetType::Btc).unwrap().balance, Decimal::from(18));
+        assert_eq!(asset_total.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(12));
 
         let pop_sell = manager.pop_lowest_sell_order().unwrap().unwrap();
         let asset_total = manager.calculate_total_assets();
         assert_eq!(pop_sell.get_locked_asset().clone().unwrap().balance, Decimal::from_str("9").unwrap());
-        assert_eq!(asset_total.get(EAssetType::Btc).unwrap().balance, Decimal::from(9));
-        assert_eq!(asset_total.get(EAssetType::Usdt).unwrap().balance, Decimal::from(12));
+        assert_eq!(asset_total.get(&EAssetType::Btc).unwrap().balance, Decimal::from(9));
+        assert_eq!(asset_total.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(12));
 
         let pop_sell = manager.pop_lowest_sell_order().unwrap().unwrap();
         let asset_total = manager.calculate_total_assets();
         assert_eq!(pop_sell.get_locked_asset().clone().unwrap().balance, Decimal::from_str("9").unwrap());
-        assert!(asset_total.get(EAssetType::Btc).is_err());
-        assert_eq!(asset_total.get(EAssetType::Usdt).unwrap().balance, Decimal::from(12));
+        assert!(asset_total.get(&EAssetType::Btc).is_err());
+        assert_eq!(asset_total.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(12));
 
         let pop_sell = manager.pop_lowest_sell_order().unwrap();
         let asset_total = manager.calculate_total_assets();
         assert!(pop_sell.is_none());
-        assert!(asset_total.get(EAssetType::Btc).is_err());
-        assert_eq!(asset_total.get(EAssetType::Usdt).unwrap().balance, Decimal::from(12));
+        assert!(asset_total.get(&EAssetType::Btc).is_err());
+        assert_eq!(asset_total.get(&EAssetType::Usdt).unwrap().balance, Decimal::from(12));
     }
 }

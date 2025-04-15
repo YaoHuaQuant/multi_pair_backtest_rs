@@ -54,11 +54,14 @@ impl Default for SScript<SBackTradeRunner<SDataApiDb>, SStrategyMkTest>
 {
     fn default() -> Self {
         let user_config = SUserConfig {
+            user_name: "Satoshi Nakamoto".to_string(),
             init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
             init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
         };
         let strategy = SStrategyMkTest::new();
-        let users = vec![SUser::<SStrategyMkTest>::new(user_config, strategy)];
+        let users = vec![
+            SUser::<SStrategyMkTest>::new(user_config, strategy, String::from("Satoshi Nakamoto"))
+        ];
 
         let runner_config = SBackTradeRunnerConfig {
             taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),

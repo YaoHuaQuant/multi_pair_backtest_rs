@@ -6,11 +6,13 @@ edition = "2021"
 [dependencies]
 chrono = {version = "0.4.40", features = ["serde"]}
 clickhouse = "0.13.2"
+csv = "1.3.1"
 dotenv = "0.15.0"
 env_logger = "0.11.7"
 log = "0.4.27"
+plotters = "0.3.7"
 rand = "0.9.0"
 rust_decimal = "1.36.0"
 serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.44.1", features = ["full"] }
-uuid = { version = "1.15.1", features = ["v4"] }
+uuid = { version = "1.15.1", features = ["v4", "serde"] }
