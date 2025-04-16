@@ -7,21 +7,21 @@ use tokio::runtime::Runtime;
 use crate::{
     data_source::{
         db::api::data_api_db::SDataApiDb,
-        data_manager::SDataManager
+        data_manager::SDataManager,
     },
     config::*,
     runner::{
         back_trade::{
             config::SBackTradeRunnerConfig,
-            runner::SBackTradeRunner
+            runner::SBackTradeRunner,
         },
-        TRunner
+        TRunner,
     },
     strategy::{
         strategy_mk_test::SStrategyMkTest,
-        TStrategy
+        TStrategy,
     },
-    data_runtime::user::{SUser, SUserConfig}
+    data_runtime::user::{SUser, SUserConfig},
 };
 
 pub struct SScript<R, S>
@@ -33,7 +33,7 @@ where
     pub runner: R,
 }
 
-impl <R, S> SScript<R, S>
+impl<R, S> SScript<R, S>
 where
     R: TRunner<S>,
     S: TStrategy,
@@ -54,7 +54,7 @@ impl Default for SScript<SBackTradeRunner<SDataApiDb>, SStrategyMkTest>
 {
     fn default() -> Self {
         let user_config = SUserConfig {
-            user_name: "Satoshi Nakamoto".to_string(),
+            user_name: USER_NAME.to_string(),
             init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
             init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
         };

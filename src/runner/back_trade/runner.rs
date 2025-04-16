@@ -116,7 +116,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                             // 将增量数据传输给策略模块，获取策略行为。
                             // 将策略行为进行排序 cancel order在前 new order在后
                             info!("runner_parse_result.order_result: {:?}", runner_parse_result.order_result);
-                            let strategy_actions = user.strategy.run(runner_parse_result);
+                            let strategy_actions = user.get_strategy_result(runner_parse_result);
                             info!("strategy_actions:");
                             for action in strategy_actions.iter() {
                                 info!("action: {:?}", action);

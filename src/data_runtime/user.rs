@@ -81,7 +81,7 @@ impl<S: TStrategy> SUser<S> {
 
     /// 将执行器的处理结果反馈给策略模块 获取策略Action结果
     pub fn get_strategy_result(&mut self, runner_parse_result: SRunnerParseKlineResult) -> Vec<EStrategyAction> {
-        self.strategy.run(runner_parse_result)
+        self.strategy.run(&mut self.tp_order_map, &mut self.available_assets, runner_parse_result)
     }
 
     /// 向策略模块反馈同步结果

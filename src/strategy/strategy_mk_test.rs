@@ -3,9 +3,12 @@ use std::str::FromStr;
 use log::info;
 use rust_decimal::Decimal;
 use uuid::Uuid;
+use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::EOrderAction;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
 use crate::data_runtime::order::order::SAddOrder;
+use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
+use crate::data_runtime::user::SUser;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::strategy::TStrategy;
 
@@ -22,7 +25,12 @@ impl SStrategyMkTest {
 }
 
 impl TStrategy for SStrategyMkTest {
-    fn run(&mut self, runner_parse_result: SRunnerParseKlineResult) -> Vec<EStrategyAction> {
+    fn run(
+        &mut self,
+        tp_order_map: &mut STradingPairOrderManagerMap,
+        available_assets: &mut SAssetMap,
+        runner_parse_result: SRunnerParseKlineResult,
+    ) -> Vec<EStrategyAction> {
         let SRunnerParseKlineResult {
             tp_type,
             new_kline: kline_unit,

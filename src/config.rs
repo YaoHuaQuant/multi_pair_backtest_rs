@@ -8,8 +8,20 @@ pub static TAKER_ORDER_FEE: f64 = 0.0005;
 /// 挂单手续费
 pub static MAKER_ORDER_FEE: f64 = 0.0002;
 
+/// USDT现货最低交易量(以基础资产BTC为单位)
+pub static TRADDING_PAIR_BTC_USDT_MIN_QUANTITY: f64 = 0.00001;
+
+/// BTC币本位合约最低交易量(以基础资产BTC币本位合约为单位)
+pub static TRADDING_PAIR_BTC_USD_CM_MIN_QUANTITY: f64 = 1.0;
+
+/// BTC U本位合约最低交易量(以基础资产U币本位合约为单位)
+pub static TRADDING_PAIR_BTC_USDT_FUTURE_FUTURE_MIN_QUANTITY: f64 = 1.0;
+
+/// 账户名称
+pub static USER_NAME: &str = "Satoshi Nakamoto";
+
 /// 初始资金量USDT
-pub static INIT_BALANCE_USDT: f64 = 1_000_000_.0;
+pub static INIT_BALANCE_USDT: f64 = 100_000_.0;
 
 /// 初始资金量BTC
 pub static INIT_BALANCE_BTC: f64 = 1.0;
