@@ -10,6 +10,7 @@ use crate::data_runtime::asset::EAssetType;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
 use crate::runner::logger::user_unit::SDataLogUserUnit;
+use crate::utils::assets_denominate_usdt;
 
 /// 数据日志
 #[derive(Debug, Default)]
@@ -40,7 +41,7 @@ impl SDataLogger {
         let mut wtr = csv::Writer::from_writer(file);
 
         for (_, user_log) in self.user_data.iter() {
-            dbg!(&user_log);
+            // dbg!(&user_log);
             // 获取单类交易对的价格
             let fn_get_trading_pair_price = |tp_type: &ETradingPairType| {
                 match user_log.trading_pair_prices.get(tp_type) {
@@ -65,7 +66,7 @@ impl SDataLogger {
                 match map.get(as_type) {
                     Ok(map_slice) => {
                         new_map.merge_asset(map_slice.clone());
-                        SDataLogUserUnit::assets_denominate_usdt(
+                        assets_denominate_usdt(
                             &new_map,
                             trading_pair_prices,
                         )
@@ -78,7 +79,7 @@ impl SDataLogger {
             let assets_available = &user_log.available_assets;
             let assets_locked = &user_log.locked_assets;
             let trading_pair_prices = &user_log.trading_pair_prices;
-            let total_usdt = SDataLogUserUnit::assets_denominate_usdt(
+            let total_usdt = assets_denominate_usdt(
                 &assets_total,
                 trading_pair_prices,
             );
@@ -91,12 +92,12 @@ impl SDataLogger {
                 user_id: user_log.user_id,
                 user_name: user_log.user_name.clone(),
                 total_usdt,
-                total_available_usdt: SDataLogUserUnit::assets_denominate_usdt(
+                total_available_usdt: assets_denominate_usdt(
                     &assets_available,
                     trading_pair_prices,
                 ),
                 assets_total_usdt: total_usdt - usdt_total,
-                total_locked_usdt: SDataLogUserUnit::assets_denominate_usdt(
+                total_locked_usdt: assets_denominate_usdt(
                     &assets_locked,
                     trading_pair_prices,
                 ),
@@ -228,7 +229,7 @@ mod tests {
     use crate::data_source::trading_pair::ETradingPairType;
     use crate::runner::logger::data_logger::SDataLogger;
     use crate::runner::logger::user_unit::SDataLogUserUnit;
-    use crate::strategy::strategy_mk_test::SStrategyMkTest;
+    use crate::strategy::mk_test::SStrategyMkTest;
 
     #[test]
     pub fn test1() {
@@ -238,6 +239,7 @@ mod tests {
         let time = Local::now();
         let mut user = SUser::new(
             SUserConfig {
+                user_name: "test user".to_string(),
                 init_balance_usdt: Decimal::from(10_000),
                 init_balance_btc: Decimal::from(1),
             },

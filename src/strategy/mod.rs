@@ -3,9 +3,9 @@ use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrde
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult};
 
-pub mod strategy_mk_test;
+pub mod mk_test;
+pub mod mk4;
 pub mod mk1;
-pub mod mk2;
 
 /// 策略接口
 pub trait TStrategy {

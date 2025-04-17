@@ -18,11 +18,12 @@ use crate::{
         TRunner,
     },
     strategy::{
-        strategy_mk_test::SStrategyMkTest,
+        mk_test::SStrategyMkTest,
         TStrategy,
     },
     data_runtime::user::{SUser, SUserConfig},
 };
+use crate::strategy::mk1::SStrategyMk1;
 
 pub struct SScript<R, S>
 where
@@ -50,9 +51,9 @@ where
     }
 }
 
-impl Default for SScript<SBackTradeRunner<SDataApiDb>, SStrategyMkTest>
+impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMkTest>
 {
-    fn default() -> Self {
+    pub fn default() -> Self {
         let user_config = SUserConfig {
             user_name: USER_NAME.to_string(),
             init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
@@ -60,7 +61,38 @@ impl Default for SScript<SBackTradeRunner<SDataApiDb>, SStrategyMkTest>
         };
         let strategy = SStrategyMkTest::new();
         let users = vec![
-            SUser::<SStrategyMkTest>::new(user_config, strategy, String::from("Satoshi Nakamoto"))
+            SUser::<SStrategyMkTest>::new(user_config, strategy)
+        ];
+
+        let runner_config = SBackTradeRunnerConfig {
+            taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),
+            maker_order_fee: Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
+            date_from: config_date_from(),
+            date_to: config_date_to(),
+        };
+
+        let rt = Runtime::new().unwrap();
+
+        let data_manager = rt.block_on(SDataManager::build(&runner_config.date_from, &runner_config.date_to));
+        let runner = rt.block_on(SBackTradeRunner::new(runner_config, data_manager));
+        SScript {
+            users,
+            runner,
+        }
+    }
+}
+
+impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMk1>
+{
+    pub fn default() -> Self {
+        let user_config = SUserConfig {
+            user_name: USER_NAME.to_string(),
+            init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
+            init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
+        };
+        let strategy = SStrategyMk1::default();
+        let users = vec![
+            SUser::<SStrategyMk1>::new(user_config, strategy)
         ];
 
         let runner_config = SBackTradeRunnerConfig {

@@ -1,4 +1,6 @@
 //! Runner和User(主要是Strategy)的交互协议
+
+use std::collections::HashMap;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
@@ -30,6 +32,7 @@ pub struct SRunnerParseKlineResult {
 /// 添加策略订单
 #[derive(Debug)]
 pub struct SStrategyOrderAdd {
+    /// 用于映射StrategyOrder的id
     pub id: Uuid,
     pub tp_type: ETradingPairType,
     pub action: EOrderAction,

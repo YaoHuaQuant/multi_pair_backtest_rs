@@ -14,17 +14,17 @@ use crate::strategy::TStrategy;
 
 /// 测试用策略
 #[derive(Debug, Default)]
-pub struct SStrategyMk1 {
+pub struct SStrategyMk4 {
     pub remove_list: VecDeque<Uuid>,
 }
 
-impl SStrategyMk1{
+impl SStrategyMk4 {
     pub fn new() -> Self {
         Self { remove_list: Default::default() }
     }
 }
 
-impl TStrategy for SStrategyMk1 {
+impl TStrategy for SStrategyMk4 {
     fn run(
         &mut self,
         tp_order_map: &mut STradingPairOrderManagerMap,

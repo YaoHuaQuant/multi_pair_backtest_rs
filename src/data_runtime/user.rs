@@ -14,17 +14,17 @@ use crate::{
         asset::{
             asset::SAsset,
             asset_map::SAssetMap,
-            EAssetType
+            EAssetType,
         },
-        order::trading_pair_order_manager_map::STradingPairOrderManagerMap
+        order::trading_pair_order_manager_map::STradingPairOrderManagerMap,
     },
     data_source::trading_pair::ETradingPairType,
     protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult},
-    strategy::TStrategy
+    strategy::TStrategy,
 };
 use crate::data_runtime::asset::asset_map::RAssetMapResult;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SUserConfig {
     pub user_name: String,
     pub init_balance_usdt: Decimal,
@@ -48,7 +48,7 @@ pub struct SUser<S: TStrategy> {
 
     pub id: Uuid,
 
-    pub name:String,
+    pub name: String,
 
     /// 订单管理器
     pub tp_order_map: STradingPairOrderManagerMap,
@@ -61,18 +61,18 @@ pub struct SUser<S: TStrategy> {
 }
 
 impl<S: TStrategy> SUser<S> {
-    pub fn new(config: SUserConfig, strategy: S, name:String) -> Self {
+    pub fn new(config: SUserConfig, strategy: S) -> Self {
         let mut available_assets = SAssetMap::new();
-        available_assets.merge_asset(SAsset{ as_type: EAssetType::Usdt, balance: config.init_balance_usdt });
-        available_assets.merge_asset(SAsset{ as_type: EAssetType::Btc, balance: config.init_balance_btc });
-        let mut tp_order_map = STradingPairOrderManagerMap{ inner: Default::default() };
+        available_assets.merge_asset(SAsset { as_type: EAssetType::Usdt, balance: config.init_balance_usdt });
+        available_assets.merge_asset(SAsset { as_type: EAssetType::Btc, balance: config.init_balance_btc });
+        let mut tp_order_map = STradingPairOrderManagerMap { inner: Default::default() };
         tp_order_map.inner.insert(ETradingPairType::BtcUsdt, Default::default());
         tp_order_map.inner.insert(ETradingPairType::BtcUsdCmFuture, Default::default());
         tp_order_map.inner.insert(ETradingPairType::BtcUsdtFuture, Default::default());
         Self {
-            config,
+            config:config.clone(),
             id: Uuid::new_v4(),
-            name,
+            name: config.user_name,
             tp_order_map,
             available_assets,
             strategy,
@@ -134,7 +134,7 @@ mod tests {
     use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
     use crate::data_runtime::user::{SUser, SUserConfig};
     use crate::data_source::trading_pair::ETradingPairType;
-    use crate::strategy::strategy_mk_test::SStrategyMkTest;
+    use crate::strategy::mk_test::SStrategyMkTest;
 
     fn get_test_data() -> SUser<SStrategyMkTest> {
         let user_config = SUserConfig {
@@ -190,7 +190,7 @@ mod tests {
 
         let _r = tp_order_map.insert(ETradingPairType::BtcUsdt, order_manager);
 
-        user.tp_order_map=tp_order_map;
+        user.tp_order_map = tp_order_map;
         user
     }
     #[test]
