@@ -142,7 +142,7 @@ mod tests {
             init_balance_usdt: Decimal::from(10000),
             init_balance_btc: Decimal::from(0),
         };
-        let mut user = SUser::new(user_config, SStrategyMkTest::new(), String::from("bob"));
+        let mut user = SUser::new(user_config, SStrategyMkTest::new());
         let mut tp_order_map = STradingPairOrderManagerMap::default();
         let mut order_manager = SOrderManager::new();
 

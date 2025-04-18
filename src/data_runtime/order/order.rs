@@ -229,6 +229,10 @@ impl SOrder {
     pub fn get_paid_fee_asset(&self) -> &Option<SAsset> {
         &self.paid_fee_asset
     }
+
+    pub fn take_paid_fee_asset(&mut self) -> Option<SAsset> {
+        self.paid_fee_asset.take()
+    }
     // endregion ----- get函数 -----
 }
 

@@ -135,7 +135,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             // thread::sleep(std::time::Duration::from_secs(2));
         }
         // 回测结束 输出结果
-        self.data_logger.output_user(String::from(format!("data/back_trade/{}.csv", Local::now().format("%Y-%m-%d_%H_%M_%S"))));
+        self.data_logger.output_user(String::from(format!("data/back_trade/{}.csv", Local::now().format("%Y%m%d_%H%M%S"))));
         ()
     }
 }

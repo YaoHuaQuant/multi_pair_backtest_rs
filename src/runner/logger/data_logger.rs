@@ -244,7 +244,6 @@ mod tests {
                 init_balance_btc: Decimal::from(1),
             },
             SStrategyMkTest::new(),
-            String::from("test user"),
         );
         let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
         trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(10_000));

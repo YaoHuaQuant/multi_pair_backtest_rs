@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use rust_decimal::Decimal;
 use uuid::Uuid;
+
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::order::{EOrderState, SAddOrder, SOrder};
@@ -35,11 +36,8 @@ pub struct SOrderManager {
     /// 卖单索引集合 K-价格 V-订单uuid列表
     pub sell_orders: BTreeMap<Decimal, Vec<Uuid>>,
 
-    /// 已完成买单列表
-    pub bought_orders: Vec<SOrder>,
-
-    /// 已完成卖单列表
-    pub sold_orders: Vec<SOrder>,
+    /// 累计手续费
+    pub total_fee_asset_map: SAssetMap,
 }
 
 impl SOrderManager {
@@ -48,8 +46,7 @@ impl SOrderManager {
             orders: Default::default(),
             buy_orders: Default::default(),
             sell_orders: Default::default(),
-            bought_orders: Default::default(),
-            sold_orders: Default::default(),
+            total_fee_asset_map: Default::default(),
         }
     }
 
@@ -90,10 +87,9 @@ impl SOrderManager {
         let state = order.get_state();
         match state {
             EOrderState::Executed => {
-                match order.get_action() {
-                    EOrderAction::Buy => { &mut self.bought_orders }
-                    EOrderAction::Sell => { &mut self.sold_orders }
-                }.push(order);
+                if let Some(fee) =  order.get_paid_fee_asset() {
+                    self.total_fee_asset_map.merge_asset(fee.clone())
+                }
                 Ok(())
             }
             _ => { Err(EOrderManagerError::InsertFinishedOrderStateError(state)) }
@@ -220,15 +216,7 @@ impl SOrderManager {
 
     /// 统计总手续费量
     pub fn calculate_total_fee(&self) -> SAssetMap {
-        let mut result = SAssetMap::new();
-        for iter in vec![self.bought_orders.iter(), self.sold_orders.iter()] {
-            for order in iter {
-                if let Some(fee) = order.get_paid_fee_asset() {
-                    result.merge_asset(fee.clone())
-                }
-            }
-        }
-        result
+        self.total_fee_asset_map.clone()
     }
 }
 

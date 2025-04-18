@@ -1,45 +1,25 @@
-use serde::Serialize;
-use std::error::Error;
-use std::fs::File;
+use uuid::Uuid;
 
-#[derive(Serialize)]
-struct Employee {
-    id: u32,
-    name: String,
-    department: String,
-    salary: f64,
+#[derive(Debug)]
+struct Order {
+    id: Uuid,
+    // 其他字段
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let employees = vec![
-        Employee {
-            id: 1,
-            name: "Alice".to_string(),
-            department: "Engineering".to_string(),
-            salary: 75000.0,
-        },
-        Employee {
-            id: 2,
-            name: "Bob".to_string(),
-            department: "Marketing".to_string(),
-            salary: 65000.0,
-        },
-        Employee {
-            id: 3,
-            name: "Charlie".to_string(),
-            department: "HR".to_string(),
-            salary: 60000.0,
-        },
-    ];
+#[derive(Debug)]
+struct OrderPair<'a> {
+    order1: &'a Order,
+    order2: &'a Order,
+}
 
-    let file = File::create("employees.csv")?;
-    let mut wtr = csv::Writer::from_writer(file);
+fn main() {
+    let order_a = Order { id: Uuid::new_v4() };
+    let order_b = Order { id: Uuid::new_v4() };
 
-    for employee in employees {
-        wtr.serialize(employee)?;
-    }
+    let pair = OrderPair {
+        order1: &order_a,
+        order2: &order_b,
+    };
 
-    wtr.flush()?;
-    println!("CSV 文件已成功写入！");
-    Ok(())
+    println!("OrderPair: {:?}", pair);
 }
