@@ -3,6 +3,7 @@ pub mod order_manager;
 pub mod trading_pair_order_manager_map;
 
 /// 持仓方向
+#[derive(Debug)]
 pub enum EOrderDirection {
     Long,
     Short
