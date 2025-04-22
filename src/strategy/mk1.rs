@@ -39,20 +39,17 @@
 //!
 
 use std::collections::HashSet;
-use log::{debug, info};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
 use crate::config::TRADDING_PAIR_BTC_USDT_MIN_QUANTITY;
 use crate::data_runtime::asset::asset::SAsset;
 use crate::data_runtime::asset::asset_map::SAssetMap;
-use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
 use crate::strategy::TStrategy;
-use crate::utils::assets_denominate_usdt;
 
 pub struct SStrategyMk1 {
     /// 目标仓位占比
@@ -151,13 +148,13 @@ impl TStrategy for SStrategyMk1 {
         while tmp_price < cut_off_sell_price {
             // debug!("仓位:{:.2?}%\t订单价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",tmp_position_ratio*Decimal::from(100), tmp_price, tmp_base_quantity, tmp_quote_quantity, tmp_quantity);
             if tmp_position_ratio > target_position_ratio {
-                // 目标仓位大于实际仓位 等待上涨仓位提升
-                tmp_quantity = const_quantity_min;
-                tmp_price = target_position_ratio * tmp_quote_quantity / (tmp_base_quantity - tmp_quantity - target_position_ratio * tmp_base_quantity);
-            } else if tmp_position_ratio < target_position_ratio {
-                // 目标仓位小于实际仓位 上涨减仓
+                // 实际仓位大于目标仓位 上涨减仓 降低仓位
                 tmp_price += const_delta_price_min;
                 tmp_quantity = (Decimal::from(1) - target_position_ratio) * tmp_base_quantity - target_position_ratio * tmp_quote_quantity / tmp_price;
+            } else if tmp_position_ratio < target_position_ratio {
+                // 实际仓位小于目标仓位 等待上涨 提升仓位
+                tmp_quantity = const_quantity_min;
+                tmp_price = target_position_ratio * tmp_quote_quantity / (tmp_base_quantity - tmp_quantity - target_position_ratio * tmp_base_quantity);
             } else {
                 // 实际仓位等于目标仓位 均匀挂单
                 tmp_quantity = const_quantity_min;
@@ -170,7 +167,7 @@ impl TStrategy for SStrategyMk1 {
             // 挂单
             // info!("Strategy Mk2 挂单\t-\tAction:{:?}\tprice:{:?}\tquantity:{:?}", EOrderAction::Sell, tmp_price, tmp_quantity);
             result.push(EStrategyAction::NewOrder(SStrategyOrderAdd {
-                id: Default::default(),
+                id: None,
                 tp_type,
                 action: EOrderAction::Sell,
                 price: tmp_price,
@@ -191,13 +188,13 @@ impl TStrategy for SStrategyMk1 {
         while tmp_price > cut_off_buy_price {
             // info!("仓位:{:.2?}%\t订单价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",tmp_position_ratio*Decimal::from(100), tmp_price, tmp_base_quantity, tmp_quote_quantity, tmp_quantity);
             if tmp_position_ratio > target_position_ratio {
-                // 目标仓位小于实际仓位 下跌加仓
+                // 实际仓位大于目标仓位 等待下跌 降低仓位
                 tmp_quantity = const_quantity_min;
                 tmp_price = target_position_ratio * tmp_quote_quantity / (tmp_base_quantity + tmp_quantity - target_position_ratio * tmp_base_quantity);
             } else if tmp_position_ratio < target_position_ratio {
-                // 目标仓位大于实际仓位 等待下跌仓位降低
+                // 实际仓位小于目标仓位 下跌加仓 提升仓位
                 tmp_price -= const_delta_price_min;
-                tmp_quantity = -((Decimal::from(1) - target_position_ratio) * tmp_base_quantity - target_position_ratio * tmp_quote_quantity / tmp_price);
+                tmp_quantity = -(Decimal::from(1) - target_position_ratio) * tmp_base_quantity + target_position_ratio * tmp_quote_quantity / tmp_price;
             } else {
                 // 实际仓位等于目标仓位 均匀挂单
                 tmp_quantity = const_quantity_min;
@@ -210,7 +207,7 @@ impl TStrategy for SStrategyMk1 {
             // 挂单
             // info!("Strategy Mk2 挂单\t-\tAction:{:?}\tprice:{:?}\tquantity:{:?}", EOrderAction::Buy, tmp_price, tmp_quantity);
             result.push(EStrategyAction::NewOrder(SStrategyOrderAdd {
-                id: Default::default(),
+                id: None,
                 tp_type,
                 action: EOrderAction::Buy,
                 price: tmp_price,

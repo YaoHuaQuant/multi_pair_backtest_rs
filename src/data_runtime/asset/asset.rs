@@ -1,6 +1,5 @@
 use std::ops::{AddAssign};
 use rust_decimal::Decimal;
-use serde::Serialize;
 use crate::data_runtime::asset::EAssetType;
 
 /// 资产对象

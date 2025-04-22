@@ -15,3 +15,10 @@ pub enum EOrderAction {
     Buy,
     Sell
 }
+
+/// 仓位状态
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum EOrderPosition {
+    Open,
+    Close
+}

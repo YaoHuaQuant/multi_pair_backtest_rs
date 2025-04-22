@@ -6,9 +6,7 @@ use uuid::Uuid;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::EOrderAction;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
-use crate::data_runtime::order::order::SAddOrder;
 use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
-use crate::data_runtime::user::SUser;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::strategy::TStrategy;
 
@@ -50,14 +48,14 @@ impl TStrategy for SStrategyMkTest {
         }
 
         let action_new_order1 = SStrategyOrderAdd {
-            id: Default::default(),
+            id: None,
             tp_type,
             action: EOrderAction::Buy,
             price: kline_unit.low_price,
             quantity: Decimal::from_str("0.1").unwrap(),
         };
         let action_new_order2 = SStrategyOrderAdd {
-            id: Default::default(),
+            id: None,
             tp_type,
             action: EOrderAction::Sell,
             price: kline_unit.high_price,

@@ -1,11 +1,10 @@
 //! Runner和User(主要是Strategy)的交互协议
 
-use std::collections::HashMap;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::{
-    data_runtime::order::order::{SAddOrder, SOrder},
+    data_runtime::order::order::SOrder,
     data_source::{
         kline::SKlineUnitData,
         trading_pair::ETradingPairType
@@ -33,7 +32,7 @@ pub struct SRunnerParseKlineResult {
 #[derive(Debug)]
 pub struct SStrategyOrderAdd {
     /// 用于映射StrategyOrder的id
-    pub id: Uuid,
+    pub id: Option<Uuid>,
     pub tp_type: ETradingPairType,
     pub action: EOrderAction,
     pub price: Decimal,

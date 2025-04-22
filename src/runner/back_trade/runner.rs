@@ -9,9 +9,8 @@ use crate::{
             asset::SAsset,
             EAssetType,
         },
-        asset::asset_map::SAssetMap,
         order::EOrderAction,
-        order::order::{SAddOrder, SOrder},
+        order::order::{SOrder},
     },
     data_source::{
         data_manager::SDataManager,
@@ -202,7 +201,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             // 提取订单锁定的计价资产 生成基础资产
             match order.execute(Some(fee_quote_asset.clone())) {
                 // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
-                Ok(consumed_quote_asset) => {
+                Ok(_consumed_quote_asset) => {
                     // 用户获得基础资产
                     let obtain_base_asset = SAsset {
                         as_type: base_asset_type,
@@ -246,7 +245,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             // 提取订单锁定的基础资产 生成计价资产
             match order.execute(Some(fee_base_asset.clone())) {
                 // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
-                Ok(consumed_base_asset) => {
+                Ok(_consumed_base_asset) => {
                     // 用户获得计价资产
                     let obtain_quote_asset = SAsset {
                         as_type: quote_asset_type,

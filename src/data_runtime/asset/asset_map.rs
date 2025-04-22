@@ -2,7 +2,6 @@ use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use rust_decimal::Decimal;
-use serde::Serialize;
 use crate::data_runtime::asset::asset::{EAssetV2Error, RemainBalance, RequireBalance, SAsset};
 use crate::data_runtime::asset::EAssetType;
 

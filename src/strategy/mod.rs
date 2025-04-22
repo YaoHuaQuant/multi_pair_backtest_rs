@@ -6,6 +6,7 @@ use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlin
 pub mod mk_test;
 pub mod mk4;
 pub mod mk1;
+pub mod mk2;
 pub mod order;
 
 /// 策略接口

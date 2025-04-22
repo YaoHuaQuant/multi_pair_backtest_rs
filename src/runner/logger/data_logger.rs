@@ -1,11 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use chrono::{DateTime, Local};
-use log::error;
 use rust_decimal::Decimal;
 use serde::Serialize;
 use uuid::Uuid;
-use crate::data_runtime::asset::asset_map::{RAssetMapResult, SAssetMap};
+use crate::data_runtime::asset::asset_map::{SAssetMap};
 use crate::data_runtime::asset::EAssetType;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;

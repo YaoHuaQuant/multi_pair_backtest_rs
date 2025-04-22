@@ -26,18 +26,24 @@ pub static INIT_BALANCE_USDT: f64 = 100_000_.0;
 /// 初始资金量BTC
 pub static INIT_BALANCE_BTC: f64 = 1.0;
 
-// 回测周期(东八区)'2025-01-27 13:40:00' and '2025-01-28 24:22:00'
+// 回测配置1（周期15小时）
+// 回测周期(东八区)'2025-01-27 13:40:00' and '2025-01-28 04:22:00'
 // 起始价格 100066.44 结束价格100009.02
 // 最高价格 102160.43 最低价格 97808.1
 
+// 回测配置2（周期2个月）
+// 回测周期(东八区)'2024-12-05 19:43:00' and '2025-02-04 05:01:00'
+// 起始价格 100034.98 结束价格 99985.83
+// 最高价格 109194.17(+9.19%) 最低价格 89417.88(-10.06%)
+
 /// 回测起始日期
 pub fn config_date_from() -> DateTime<Local> {
-    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 27).expect("无效的日期"), NaiveTime::from_hms_opt(13, 40, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2024, 12, 5).expect("无效的日期"), NaiveTime::from_hms_opt(19, 43, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 }
 
 /// 回测结束日期
 pub fn config_date_to() -> DateTime<Local> {
-    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 28).expect("无效的日期"), NaiveTime::from_hms_opt(4, 22, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 2, 4).expect("无效的日期"), NaiveTime::from_hms_opt(5, 1, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 }
 
 /// 默认策略
