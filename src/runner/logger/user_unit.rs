@@ -7,10 +7,11 @@ use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::user::SUser;
 use crate::data_source::trading_pair::ETradingPairType;
+use crate::runner::logger::transfer_unit::SDataLogTransferUnit;
 use crate::strategy::TStrategy;
 use crate::utils::assets_denominate_usdt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SDataLogUserUnit {
     pub time: DateTime<Local>,
     pub user_id: Uuid,
@@ -19,6 +20,10 @@ pub struct SDataLogUserUnit {
     /// 交易对报价
     pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
 
+    // -----交易信息-----
+    pub transfer_info: SDataLogTransferUnit,
+
+    // -----资产信息-----
     /// 总资产
     pub total_assets: SAssetMap,
     /// 总资产（Usdt计价）
@@ -53,6 +58,7 @@ impl SDataLogUserUnit {
         user: &SUser<S>,
         target_position_ratio: Option<Decimal>,
         trading_pair_prices: &HashMap<ETradingPairType, Decimal>,
+        transfer_info: &SDataLogTransferUnit,
     ) -> Self {
         let total_usdt = user.total_asset().get(&EAssetType::Usdt)
             .unwrap_or(&SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(0) })
@@ -63,6 +69,7 @@ impl SDataLogUserUnit {
             user_id: user.id,
             user_name: user.name.clone(),
             trading_pair_prices: trading_pair_prices.clone(),
+            transfer_info:transfer_info.clone(),
             total_assets: user.total_asset(),
             total_assets_usdt: assets_denominate_usdt(&user.total_asset(), &trading_pair_prices),
             total_usdt,
@@ -98,6 +105,7 @@ mod tests {
     use rust_decimal::Decimal;
     use crate::data_runtime::user::{SUser, SUserConfig};
     use crate::data_source::trading_pair::ETradingPairType;
+    use crate::runner::logger::transfer_unit::SDataLogTransferUnit;
     use crate::runner::logger::user_unit::SDataLogUserUnit;
     use crate::strategy::mk_test::SStrategyMkTest;
 
@@ -119,6 +127,7 @@ mod tests {
             &user,
             None,
             &trading_pair_prices,
+            &SDataLogTransferUnit::default(),
         );
         data
     }

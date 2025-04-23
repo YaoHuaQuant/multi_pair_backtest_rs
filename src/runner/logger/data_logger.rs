@@ -125,6 +125,15 @@ impl SDataLogger {
 
                 target_position_ratio: user_log.target_position_ratio,
                 actual_position_ratio: user_log.get_actual_position_ratio(),
+
+                unfulfilled_buy_order_cnt: user_log.transfer_info.unfulfilled_buy_order_cnt,
+                unfulfilled_sell_order_cnt: user_log.transfer_info.unfulfilled_sell_order_cnt,
+                executed_buy_order_cnt: user_log.transfer_info.executed_buy_order_cnt,
+                executed_sell_order_cnt: user_log.transfer_info.executed_sell_order_cnt,
+                unfulfilled_buy_usdt_cnt: user_log.transfer_info.unfulfilled_buy_usdt_cnt,
+                unfulfilled_sell_usdt_cnt: user_log.transfer_info.unfulfilled_sell_usdt_cnt,
+                executed_buy_usdt_cnt: user_log.transfer_info.executed_buy_usdt_cnt,
+                executed_sell_usdt_cnt: user_log.transfer_info.executed_sell_usdt_cnt,
             };
             wtr.serialize(merged_output).unwrap();
         }
@@ -155,6 +164,24 @@ struct SMergeOutput {
     pub target_position_ratio: Option<Decimal>,
     /// 实际仓位
     pub actual_position_ratio: Decimal,
+
+    // -----交易信息-----
+    /// 挂单的买入交易数
+    pub unfulfilled_buy_order_cnt: i64,
+    /// 挂单的卖出交易数
+    pub unfulfilled_sell_order_cnt: i64,
+    /// 已成交的买入交易数
+    pub executed_buy_order_cnt: i64,
+    /// 已成交的卖出交易数
+    pub executed_sell_order_cnt: i64,
+    /// 挂单的买入资产量（USDT计价）
+    pub unfulfilled_buy_usdt_cnt: Decimal,
+    /// 挂单的卖出资产量（USDT计价）
+    pub unfulfilled_sell_usdt_cnt: Decimal,
+    /// 已成交的买入资产量（USDT计价）
+    pub executed_buy_usdt_cnt: Decimal,
+    /// 已成交的卖出资产量（USDT计价）
+    pub executed_sell_usdt_cnt: Decimal,
 
     // -----资产信息-----
     /// 资产总量（USDT计价）
@@ -227,6 +254,7 @@ mod tests {
     use crate::data_runtime::user::{SUser, SUserConfig};
     use crate::data_source::trading_pair::ETradingPairType;
     use crate::runner::logger::data_logger::SDataLogger;
+    use crate::runner::logger::transfer_unit::SDataLogTransferUnit;
     use crate::runner::logger::user_unit::SDataLogUserUnit;
     use crate::strategy::mk_test::SStrategyMkTest;
 
@@ -252,6 +280,7 @@ mod tests {
             &user,
             None,
             &trading_pair_prices,
+            &SDataLogTransferUnit::default(),
         );
 
         data.add_user_data(user_data);
@@ -269,6 +298,7 @@ mod tests {
             &user,
             None,
             &trading_pair_prices,
+            &SDataLogTransferUnit::default(),
         );
 
         data.add_user_data(user_data);
@@ -286,6 +316,7 @@ mod tests {
             &user,
             None,
             &trading_pair_prices,
+            &SDataLogTransferUnit::default(),
         );
 
         data.add_user_data(user_data);

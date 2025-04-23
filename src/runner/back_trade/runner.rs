@@ -29,6 +29,7 @@ use crate::data_runtime::user::SUser;
 use crate::protocol::SStrategyOrderAdd;
 use crate::runner::logger::data_logger::SDataLogger;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
+use crate::runner::logger::transfer_unit::{SDataLogTransferExecutedUnit, SDataLogTransferUnfulfilledUnit, SDataLogTransferUnit};
 use crate::runner::logger::user_unit::SDataLogUserUnit;
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
@@ -65,6 +66,9 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             let mut trading_pair_klines: HashMap<ETradingPairType, SKlineUnitData> = HashMap::new();
             let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
 
+            // 用于记录交易量 key-user_id value-transfer_info
+            let mut transfer_info_map: HashMap<Uuid, SDataLogTransferUnit> = HashMap::new();
+
             // 在单分钟k线内遍历所有交易对
             for (tp_type, trading_pair) in self.data_manager.trading_pair_map.inner.iter() {
                 // 获取k线数据
@@ -78,7 +82,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 // 查询当前k线对应的资金费率
                 let funding_rate = trading_pair.get_funding_rate(&current_date).unwrap_or(&Decimal::from(0)).clone();
 
-                log::debug!("K线信息 - 交易对: {:?}\t开盘价:{}\t收盘价:{}\t最高价:{}\t最低价:{}\t资金费率:{}", tp_type, kline_unit_data.open_price, kline_unit_data.close_price, kline_unit_data.high_price, kline_unit_data.low_price, funding_rate);
+                debug!("K线信息 - 交易对: {:?}\t开盘价:{}\t收盘价:{}\t最高价:{}\t最低价:{}\t资金费率:{}", tp_type, kline_unit_data.open_price, kline_unit_data.close_price, kline_unit_data.high_price, kline_unit_data.low_price, funding_rate);
 
                 // 记录日志
                 trading_pair_klines.insert(tp_type.clone(), kline_unit_data);
@@ -99,6 +103,8 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                         Ok(runner_parse_result) => {
                             // 将增量数据传输给策略模块，获取策略行为。
                             // 将策略行为进行排序 cancel order在前 new order在后
+                            // 记录transfer info
+                            let transfer_info_executed = Self::get_parse_new_kline_transfer_info(&runner_parse_result);
                             // info!("runner_parse_result.order_result: {:?}", runner_parse_result.order_result);
                             let strategy_actions = user.get_strategy_result(runner_parse_result);
                             // info!("strategy_actions:");
@@ -112,6 +118,20 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                                 tp_type,
                                 user,
                             );
+                            // 记录transfer info
+                            let transfer_info_unfulfilled = Self::get_sync_strategy_action_transfer_info(&parse_action_results);
+                            let transfer_info = SDataLogTransferUnit::from(transfer_info_unfulfilled, transfer_info_executed);
+                            transfer_info_map.entry(user.id).and_modify(|v| {
+                                v.executed_buy_order_cnt += transfer_info.executed_buy_order_cnt;
+                                v.unfulfilled_buy_order_cnt += transfer_info.unfulfilled_buy_order_cnt;
+                                v.unfulfilled_sell_order_cnt += transfer_info.unfulfilled_sell_order_cnt;
+                                v.executed_buy_order_cnt += transfer_info.executed_buy_order_cnt;
+                                v.executed_sell_order_cnt += transfer_info.executed_sell_order_cnt;
+                                v.unfulfilled_buy_usdt_cnt += transfer_info.unfulfilled_buy_usdt_cnt;
+                                v.unfulfilled_sell_usdt_cnt += transfer_info.unfulfilled_sell_usdt_cnt;
+                                v.executed_buy_usdt_cnt += transfer_info.executed_buy_usdt_cnt;
+                                v.executed_sell_usdt_cnt += transfer_info.executed_sell_usdt_cnt;
+                            }).or_insert(transfer_info);
                             // 向策略模块反馈校验、调整结果
                             user.strategy.verify(tp_type, parse_action_results);
                         }
@@ -122,7 +142,8 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             // 记录日志
             self.data_logger.add_kline_data(SDataLogKlineUnit::new(current_date, trading_pair_klines));
             for user in users.iter() {
-                let user_data = SDataLogUserUnit::new(current_date, user, None, &trading_pair_prices);
+                let transfer_info = transfer_info_map.get(&user.id).unwrap();
+                let user_data = SDataLogUserUnit::new(current_date, user, None, &trading_pair_prices, transfer_info);
                 debug!("用户信息:{:?}\t资产 {:?}\t现金 {:?}\t累计手续费 {:?}",
                     user_data.user_name, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt);
                 self.data_logger.add_user_data(user_data);
@@ -175,7 +196,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 None => { None }
                 Some(order) => { Some(order.get_price()) }
             };
-            log::debug!("盘口信息 - 交易对: {:?}\t买一价格:{:?}\t卖一价格:{:?}", tp_type, highest_buy_price, lowest_sell_price);
+            debug!("盘口信息 - 交易对: {:?}\t买一价格:{:?}\t卖一价格:{:?}", tp_type, highest_buy_price, lowest_sell_price);
         }
 
         // 买单结算 用quote_currency换base_current
@@ -208,7 +229,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         balance: base_quantity - base_quantity * maker_order_fee,
                     };
 
-                    // info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &consumed_quote_asset);
+                    // info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
 
                     user_asset_manager.merge_asset(obtain_base_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
@@ -226,7 +247,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         while let Some(order) = order_manager.peek_lowest_sell_order().unwrap() {
             // 操作方向校验
             if order.get_action() != EOrderAction::Sell {
-                log::error!("EOrderAction Error: Expected Sell - Actually {:?}", order.get_action());
+                error!("EOrderAction Error: Expected Sell - Actually {:?}", order.get_action());
                 // return Err(EBackTradeRunnerError::OrderActionError(order.action));
             }
             // 挂单价格大于等于当前k线最低价格，则买单成交。
@@ -252,7 +273,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         balance: quote_quantity - quote_quantity * maker_order_fee,
                     };
 
-                    // info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &consumed_base_asset);
+                    // info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &_consumed_base_asset);
 
                     user_asset_manager.merge_asset(obtain_quote_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
@@ -364,17 +385,44 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         }
         parse_action_result
     }
-}
 
+    /// 根据parse_new_kline结果 计算
+    fn get_parse_new_kline_transfer_info(runner_parse_result: &SRunnerParseKlineResult) -> SDataLogTransferExecutedUnit {
+        let mut result = SDataLogTransferExecutedUnit::default();
+        for order_result in &runner_parse_result.order_result {
+            if let ERunnerParseOrderResult::OrderExecuted(order) = order_result {
+                match order.get_action() {
+                    EOrderAction::Buy => {
+                        result.executed_buy_order_cnt += 1;
+                        result.executed_buy_usdt_cnt += order.get_price() * order.get_quantity();
+                    }
+                    EOrderAction::Sell => {
+                        result.executed_sell_order_cnt += 1;
+                        result.executed_sell_usdt_cnt += order.get_price() * order.get_quantity();
+                    }
+                }
+            }
+        }
+        result
+    }
 
-#[cfg(test)]
-mod tests {
-    // #[tokio::test]
-    // pub async fn test() {
-    //     let mut runner = SBackTradeRunner::<SDataApiDb, SStrategyMkTest>::new().await;
-    //     println!("{:?}", runner);
-    //
-    //     runner.run().unwrap();
-    //     println!("{:?}", runner);
-    // }
+    /// 根据sync_strategy_action结果 计算
+    fn get_sync_strategy_action_transfer_info(parse_action_results: &Vec<ERunnerSyncActionResult>) -> SDataLogTransferUnfulfilledUnit {
+        let mut result = SDataLogTransferUnfulfilledUnit::default();
+        for action_result in parse_action_results {
+            if let ERunnerSyncActionResult::OrderPlaced(order) = action_result {
+                match order.get_action() {
+                    EOrderAction::Buy => {
+                        result.unfulfilled_buy_order_cnt += 1;
+                        result.unfulfilled_buy_usdt_cnt += order.get_price() * order.get_quantity();
+                    }
+                    EOrderAction::Sell => {
+                        result.unfulfilled_sell_order_cnt += 1;
+                        result.unfulfilled_sell_usdt_cnt += order.get_price() * order.get_quantity();
+                    }
+                }
+            }
+        }
+        result
+    }
 }

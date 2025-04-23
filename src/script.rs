@@ -24,6 +24,7 @@ use crate::{
     data_runtime::user::{SUser, SUserConfig},
 };
 use crate::strategy::mk1::SStrategyMk1;
+use crate::strategy::mk2::SStrategyMk2;
 
 pub struct SScript<R, S>
 where
@@ -82,7 +83,7 @@ impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMkTest>
     }
 }
 
-impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMk1>
+impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMk2>
 {
     pub fn default() -> Self {
         let user_config = SUserConfig {
@@ -90,9 +91,10 @@ impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMk1>
             init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
             init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
         };
-        let strategy = SStrategyMk1::default();
+        // let strategy = SStrategyMk1::default();
+        let strategy = SStrategyMk2::default();
         let users = vec![
-            SUser::<SStrategyMk1>::new(user_config, strategy)
+            SUser::<SStrategyMk2>::new(user_config, strategy)
         ];
 
         let runner_config = SBackTradeRunnerConfig {
