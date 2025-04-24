@@ -84,11 +84,11 @@ impl SStrategyMk2 {
 
     pub fn default() -> Self {
         // 默认仓位50%
-        // 只在盘口价的±0.1%挂单
-        // 每单至少盈利0.2%
+        // 只在盘口价的±0.5%挂单
+        // 每单至少盈利0.02%
         Self::new(
             Decimal::from_f64(0.5).unwrap(),
-            Decimal::from_f64(0.001).unwrap(),
+            Decimal::from_f64(0.005).unwrap(),
             Decimal::from_f64(0.0002).unwrap(),
         )
     }
@@ -96,7 +96,7 @@ impl SStrategyMk2 {
     /// 以静态仓位为目标
     /// 计算下一个订单的价格
     /// 以及下一个订单成交后的状态
-    pub fn get_next_order_with_static_position(
+    fn get_next_order_with_static_position(
         &self,
         direction: EOrderDirection,
         position: EOrderPosition,
@@ -111,10 +111,10 @@ impl SStrategyMk2 {
         let position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         // 目标仓位占比
         let target_position_ratio = self.target_position_ratio;
-        // 固定下单量
+        // 固定下单量（todo 参数化）
         // let const_quantity: Decimal = Decimal::from_f64(TRADDING_PAIR_BTC_USDT_MIN_QUANTITY).unwrap();
         let const_quantity: Decimal = Decimal::from_f64(TRADDING_PAIR_USDT_MIN_QUANTITY).unwrap() / price;
-        // 最小订单价格间隙
+        // 最小订单价格间隙（todo 参数化）
         let const_delta_price_min = Decimal::from_f64(0.00001).unwrap() * price;
         // 最大订单价格间隙 (todo 是否需要？)
         let const_delta_price_max = Decimal::from_f64(0.00002).unwrap() * price;
@@ -179,11 +179,11 @@ impl SStrategyMk2 {
                     match direction {
                         EOrderDirection::Long => {
                             let min_sell_price = strategy_order.get_open_price() * (Decimal::from(1) + self.minimum_profit_percentage + Decimal::from_f64(MAKER_ORDER_FEE * 2.0).unwrap());
-                            Some(cmp::min(min_sell_price, tmp_order_price))
+                            Some(cmp::max(min_sell_price, tmp_order_price))
                         }
                         EOrderDirection::Short => {
                             let max_buy_price = strategy_order.get_open_price() * (Decimal::from(1) - self.minimum_profit_percentage - Decimal::from_f64(MAKER_ORDER_FEE * 2.0).unwrap());
-                            Some(cmp::max(max_buy_price, tmp_order_price))
+                            Some(cmp::min(max_buy_price, tmp_order_price))
                         }
                     },
                     Some(strategy_order.get_id()
@@ -239,6 +239,19 @@ impl SStrategyMk2 {
                     EOrderAction::Sell => { cmp::max(price + const_delta_price_min, tmp_order_price) }
                 };
             (Some(order_price), None)
+        };
+        
+        // 加一层校验 防止数值溢出
+        let order_price_and_id = match order_price_and_id {
+            (Some(order_price), x) => {
+                let price = if order_price > Decimal::from(0) {
+                    Some(order_price)
+                } else {
+                    None
+                };
+                (price, x)
+            }
+            (None, x) => {(None, x)}
         };
 
         match order_price_and_id {

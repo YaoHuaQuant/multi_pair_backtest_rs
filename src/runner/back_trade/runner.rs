@@ -144,8 +144,9 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             for user in users.iter() {
                 let transfer_info = transfer_info_map.get(&user.id).unwrap();
                 let user_data = SDataLogUserUnit::new(current_date, user, None, &trading_pair_prices, transfer_info);
-                debug!("用户信息:{:?}\t资产 {:?}\t现金 {:?}\t累计手续费 {:?}",
-                    user_data.user_name, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt);
+                let position_ratio = (user_data.total_assets_usdt - user_data.total_usdt) / user_data.total_assets_usdt * Decimal::from(100);
+                debug!("用户信息:{:?}\t仓位:{:.2?}%\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}",
+                    user_data.user_name, position_ratio, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt);
                 self.data_logger.add_user_data(user_data);
             }
 
@@ -229,7 +230,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         balance: base_quantity - base_quantity * maker_order_fee,
                     };
 
-                    // info!("结算买单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
+                    // info!("结算买单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
 
                     user_asset_manager.merge_asset(obtain_base_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
@@ -273,7 +274,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         balance: quote_quantity - quote_quantity * maker_order_fee,
                     };
 
-                    // info!("结算卖单: {:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(), &fee_base_asset, &obtain_quote_asset, &_consumed_base_asset);
+                    // info!("结算卖单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_base_asset, &obtain_quote_asset, &_consumed_base_asset);
 
                     user_asset_manager.merge_asset(obtain_quote_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
