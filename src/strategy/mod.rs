@@ -4,7 +4,6 @@ use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult};
 
 pub mod mk_test;
-pub mod mk4;
 pub mod mk1;
 pub mod mk2;
 pub mod order;

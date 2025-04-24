@@ -49,8 +49,8 @@ pub enum EStrategyAction {
 /// Runner同步策略行为的结果
 #[derive(Debug)]
 pub enum ERunnerSyncActionResult {
-    /// 已完成挂单
-    OrderPlaced(SOrder),
+    /// 已完成挂单(关联StrategyOrder的id)
+    OrderPlaced(SOrder, Option<Uuid>),
     ///  已完成撤单
     OrderCanceled(SOrder),
 }

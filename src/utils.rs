@@ -16,49 +16,54 @@ pub mod date_time {
 
 /// 将对应资产以USDT进行计价
 pub fn assets_denominate_usdt(
+    asset: &SAsset,
+    trading_pair_prices: &HashMap<ETradingPairType, Decimal>,
+) -> Decimal {
+    // 先转换为usdt+btc
+    let new_asset = match asset.as_type {
+        EAssetType::Usdt | EAssetType::Btc => { asset.clone() }
+        EAssetType::BtcUsdtFuture => {
+            let price = trading_pair_prices.get(&ETradingPairType::BtcUsdtFuture).unwrap();
+            let btc_usdt_future_balance = asset.balance;
+            let usdt_balance = btc_usdt_future_balance * price;
+            SAsset {
+                as_type: EAssetType::Usdt,
+                balance: usdt_balance,
+            }
+        }
+        EAssetType::BtcUsdCmFuture => {
+            let price = trading_pair_prices.get(&ETradingPairType::BtcUsdCmFuture).unwrap();
+            let btc_usd_cm_future_balance = asset.balance;
+            let btc_balance = btc_usd_cm_future_balance * price;
+            SAsset {
+                as_type: EAssetType::Btc,
+                balance: btc_balance,
+            }
+        }
+    };
+
+    // 再根据target_as_type进行转换
+    let price = trading_pair_prices.get(&ETradingPairType::BtcUsdt).unwrap();
+    match asset.as_type {
+        EAssetType::Usdt => {
+            asset.balance
+        }
+        EAssetType::Btc => {
+            asset.balance * price
+        }
+        _ => Decimal::from(0)
+    }
+}
+
+/// 将对应资产以USDT进行计价
+pub fn assets_map_denominate_usdt(
     assets: &SAssetMap,
     trading_pair_prices: &HashMap<ETradingPairType, Decimal>,
 ) -> Decimal {
     // 先转换为usdt+btc
-    let mut tmp = SAssetMap::new();
-    for (_, asset) in assets.iter() {
-        match asset.as_type {
-            EAssetType::Usdt | EAssetType::Btc => { tmp.merge_asset(asset.clone()) }
-            EAssetType::BtcUsdtFuture => {
-                let price = trading_pair_prices.get(&ETradingPairType::BtcUsdtFuture).unwrap();
-                let btc_usdt_future_balance = asset.balance;
-                let usdt_balance = btc_usdt_future_balance * price;
-                let new_asset = SAsset {
-                    as_type: EAssetType::Usdt,
-                    balance: usdt_balance,
-                };
-                tmp.merge_asset(new_asset)
-            }
-            EAssetType::BtcUsdCmFuture => {
-                let price = trading_pair_prices.get(&ETradingPairType::BtcUsdCmFuture).unwrap();
-                let btc_usd_cm_future_balance = asset.balance;
-                let btc_balance = btc_usd_cm_future_balance * price;
-                let new_asset = SAsset {
-                    as_type: EAssetType::Btc,
-                    balance: btc_balance,
-                };
-                tmp.merge_asset(new_asset)
-            }
-        }
-    }
-    // 再根据target_as_type进行转换
     let mut result = Decimal::from(0);
-    let price = trading_pair_prices.get(&ETradingPairType::BtcUsdt).unwrap();
-    for (_, asset) in tmp.inner.iter() {
-        match asset.as_type {
-            EAssetType::Usdt => {
-                result += asset.balance;
-            }
-            EAssetType::Btc => {
-                result += asset.balance * price
-            }
-            _ => {}
-        }
+    for (_, asset) in assets.iter() {
+        result += assets_denominate_usdt(asset, trading_pair_prices);
     }
     result
 }

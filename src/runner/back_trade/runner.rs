@@ -31,6 +31,7 @@ use crate::runner::logger::data_logger::SDataLogger;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
 use crate::runner::logger::transfer_unit::{SDataLogTransferExecutedUnit, SDataLogTransferUnfulfilledUnit, SDataLogTransferUnit};
 use crate::runner::logger::user_unit::SDataLogUserUnit;
+use crate::utils::{assets_denominate_usdt, assets_map_denominate_usdt};
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
 
@@ -50,7 +51,7 @@ pub struct SBackTradeRunner<D: TDataApi> {
     /// 数据管理器
     pub data_manager: SDataManager<D>,
     /// 记录最新的交易对报价
-    // pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
+    pub trading_pair_prices: HashMap<ETradingPairType, Decimal>,
     /// 数据日志
     pub data_logger: SDataLogger,
 }
@@ -64,7 +65,8 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
 
             // 用于记录报价
             let mut trading_pair_klines: HashMap<ETradingPairType, SKlineUnitData> = HashMap::new();
-            let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
+            // let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
+            self.trading_pair_prices.clear();
 
             // 用于记录交易量 key-user_id value-transfer_info
             let mut transfer_info_map: HashMap<Uuid, SDataLogTransferUnit> = HashMap::new();
@@ -86,7 +88,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
 
                 // 记录日志
                 trading_pair_klines.insert(tp_type.clone(), kline_unit_data);
-                trading_pair_prices.entry(tp_type.clone())
+                self.trading_pair_prices.entry(tp_type.clone())
                     .and_modify(|e| *e = kline_unit_data.close_price)
                     .or_insert(kline_unit_data.close_price);
 
@@ -142,11 +144,19 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             // 记录日志
             self.data_logger.add_kline_data(SDataLogKlineUnit::new(current_date, trading_pair_klines));
             for user in users.iter() {
+                let mut buy_order_num = 0;
+                let mut sell_order_num = 0;
+                for (_, order_manager) in user.tp_order_map.inner.iter() {
+                    buy_order_num += order_manager.buy_orders.len();
+                    sell_order_num += order_manager.sell_orders.len();
+                }
+
+
                 let transfer_info = transfer_info_map.get(&user.id).unwrap();
-                let user_data = SDataLogUserUnit::new(current_date, user, None, &trading_pair_prices, transfer_info);
+                let user_data = SDataLogUserUnit::new(current_date, user, None, &self.trading_pair_prices, transfer_info);
                 let position_ratio = (user_data.total_assets_usdt - user_data.total_usdt) / user_data.total_assets_usdt * Decimal::from(100);
-                debug!("用户信息:{:?}\t仓位:{:.2?}%\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}",
-                    user_data.user_name, position_ratio, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt);
+                debug!("用户信息:{:?}\t仓位:{:.2?}%\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}\t买单数量:{:?}\t卖单数量:{:?}",
+                    user_data.user_name, position_ratio, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt, buy_order_num, sell_order_num);
                 self.data_logger.add_user_data(user_data);
             }
 
@@ -166,6 +176,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         Self {
             config,
             data_manager,
+            trading_pair_prices: Default::default(),
             data_logger: Default::default(),
         }
     }
@@ -219,9 +230,14 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 as_type: quote_asset_type,
                 balance: quote_quantity * maker_order_fee,
             };
+            // 计算手续费(USDT计价)
+            let fee_usdt = SAsset {
+                as_type: EAssetType::Usdt,
+                balance: assets_denominate_usdt(&fee_quote_asset, &self.trading_pair_prices),
+            };
             // 结算资产
             // 提取订单锁定的计价资产 生成基础资产
-            match order.execute(Some(fee_quote_asset.clone())) {
+            match order.execute(Some(fee_usdt)) {
                 // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
                 Ok(_consumed_quote_asset) => {
                     // 用户获得基础资产
@@ -262,10 +278,15 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 as_type: base_asset_type,
                 balance: base_quantity * maker_order_fee,
             };
+            // 计算手续费(USDT计价)
+            let fee_usdt = SAsset {
+                as_type: EAssetType::Usdt,
+                balance: assets_denominate_usdt(&fee_base_asset, &self.trading_pair_prices),
+            };
             let quote_quantity = order.get_amount();
             // 结算资产
             // 提取订单锁定的基础资产 生成计价资产
-            match order.execute(Some(fee_base_asset.clone())) {
+            match order.execute(Some(fee_usdt)) {
                 // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
                 Ok(_consumed_base_asset) => {
                     // 用户获得计价资产
@@ -380,14 +401,14 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 if let Err(e) = order_manager.insert_order(new_order.clone()) {
                     error!("Error: {:?}", e);
                 }
-                parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order));
+                parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order, add_order.id));
             }
             // info!("Finish: add_order");
         }
         parse_action_result
     }
 
-    /// 根据parse_new_kline结果 计算
+    /// 根据parse_new_kline结果 计算交易量
     fn get_parse_new_kline_transfer_info(runner_parse_result: &SRunnerParseKlineResult) -> SDataLogTransferExecutedUnit {
         let mut result = SDataLogTransferExecutedUnit::default();
         for order_result in &runner_parse_result.order_result {
@@ -407,11 +428,11 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         result
     }
 
-    /// 根据sync_strategy_action结果 计算
+    /// 根据sync_strategy_action结果 计算交易量
     fn get_sync_strategy_action_transfer_info(parse_action_results: &Vec<ERunnerSyncActionResult>) -> SDataLogTransferUnfulfilledUnit {
         let mut result = SDataLogTransferUnfulfilledUnit::default();
         for action_result in parse_action_results {
-            if let ERunnerSyncActionResult::OrderPlaced(order) = action_result {
+            if let ERunnerSyncActionResult::OrderPlaced(order, _) = action_result {
                 match order.get_action() {
                     EOrderAction::Buy => {
                         result.unfulfilled_buy_order_cnt += 1;

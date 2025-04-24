@@ -228,7 +228,7 @@ impl TStrategy for SStrategyMk1 {
         for result in parse_action_results {
             // info!("strategy verify:\t{:?}", result);
             match result {
-                ERunnerSyncActionResult::OrderPlaced(order) => {
+                ERunnerSyncActionResult::OrderPlaced(order, _) => {
                     // 记录成功的订单
                     self.order_list.insert(order.get_id());
                 }

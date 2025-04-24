@@ -9,7 +9,7 @@ use crate::data_runtime::user::SUser;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::transfer_unit::SDataLogTransferUnit;
 use crate::strategy::TStrategy;
-use crate::utils::assets_denominate_usdt;
+use crate::utils::assets_map_denominate_usdt;
 
 #[derive(Debug, Clone)]
 pub struct SDataLogUserUnit {
@@ -71,14 +71,14 @@ impl SDataLogUserUnit {
             trading_pair_prices: trading_pair_prices.clone(),
             transfer_info:transfer_info.clone(),
             total_assets: user.total_asset(),
-            total_assets_usdt: assets_denominate_usdt(&user.total_asset(), &trading_pair_prices),
+            total_assets_usdt: assets_map_denominate_usdt(&user.total_asset(), &trading_pair_prices),
             total_usdt,
             available_assets: user.available_assets.clone(),
-            available_assets_usdt: assets_denominate_usdt(&user.available_assets, &trading_pair_prices),
+            available_assets_usdt: assets_map_denominate_usdt(&user.available_assets, &trading_pair_prices),
             locked_assets: user.locked_assets(),
-            locked_assets_usdt: assets_denominate_usdt(&user.locked_assets(), &trading_pair_prices),
+            locked_assets_usdt: assets_map_denominate_usdt(&user.locked_assets(), &trading_pair_prices),
             total_fee: user.total_fee(),
-            total_fee_usdt: assets_denominate_usdt(&user.total_fee(), &trading_pair_prices),
+            total_fee_usdt: assets_map_denominate_usdt(&user.total_fee(), &trading_pair_prices),
             target_position_ratio,
         }
     }

@@ -63,8 +63,15 @@ impl SStrategyOrderManager {
             if let Some(close_order_id) = order.get_close_order_id() {
                 let _ = self.order_strategy_order_index.insert(close_order_id, order.get_id());
             }
+        } else {
+            error!("SStrategyOrderManager.strategy_orders.insert(...) fail: duplicated id-{:?}", order.get_id());
         }
         result
+    }
+
+    /// 基于SOrder生成SStrategyOrder并插入
+    pub fn add_with_order(&mut self, order: &SOrder) -> Option<SStrategyOrder> {
+        self.add(SStrategyOrder::new(order))
     }
 
     /// 获取一个StrategyOrder的引用

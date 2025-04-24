@@ -44,7 +44,7 @@ pub enum EStrategyMk2Error {
 pub struct SStrategyMk2 {
     /// 目标仓位占比
     pub target_position_ratio: Decimal,
-    /// 记录所有已挂单未成交的open订单
+    /// 记录所有已挂单未成交的open订单 todo 需更名为 opening_and_closing_orders 即所有已挂单未成交的订单（包含已挂单未成交的close订单）
     pub opening_orders: HashSet<Uuid>,
     /// 策略订单管理器
     pub strategy_order_map: SStrategyTradingPairOrderMap,
@@ -186,8 +186,7 @@ impl SStrategyMk2 {
                             Some(cmp::min(max_buy_price, tmp_order_price))
                         }
                     },
-                    Some(strategy_order.get_id()
-                    )
+                    Some(strategy_order.get_id())
                 )
             } else {
                 (None, None)
@@ -240,7 +239,7 @@ impl SStrategyMk2 {
                 };
             (Some(order_price), None)
         };
-        
+
         // 加一层校验 防止数值溢出
         let order_price_and_id = match order_price_and_id {
             (Some(order_price), x) => {
@@ -251,7 +250,7 @@ impl SStrategyMk2 {
                 };
                 (price, x)
             }
-            (None, x) => {(None, x)}
+            (None, x) => { (None, x) }
         };
 
         match order_price_and_id {
@@ -287,21 +286,21 @@ impl TStrategy for SStrategyMk2 {
         runner_parse_result: SRunnerParseKlineResult,
     ) -> Vec<EStrategyAction> {
         let mut result = Vec::new();
-        // 1. 从runner获取order的执行情况，将成功执行的order进行记录。
         let SRunnerParseKlineResult {
             tp_type,
             new_kline,
             new_funding_rate: _,
             order_result
         } = runner_parse_result;
-
         let mut strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
+        // 1. 从runner获取order的执行情况，将成功执行的order进行记录。
 
+        debug!("self.opening_orders lens before ParseOrderResult :{:?}", self.opening_orders.len());
         for order_result in order_result {
             // info!("strategy receive order result:\t{:?}", order_result);
             match order_result {
                 ERunnerParseOrderResult::OrderExecuted(order) => {
-                    // 删除已开仓的open订单
+                    // 删除已开仓的open订单 todo （此处无需修改）同时已经删除已开仓的close订单
                     self.opening_orders.remove(&order.get_id());
                     // 将调整策略订单状态（挂单状态改为已完成状态）
                     let order_id = &order.get_id();
@@ -332,17 +331,26 @@ impl TStrategy for SStrategyMk2 {
                         }
                     }
 
-                    let strategy_order = SStrategyOrder::new(&order);
-                    if let Some(order) = strategy_order_manager.add(strategy_order) {
-                        error!("order can not insert into strategy_order:{:?}", order);
-                    }
+                    // if let Some(order) = strategy_order_manager.add_with_order(&order) {
+                    //     error!("order can not insert into strategy_order:{:?}", order);
+                    // }
                 }
             }
         }
-        //  2. 撤回所有未成交的open订单
+
+        debug!("self.opening_orders lens after ParseOrderResult:{:?}", self.opening_orders.len());
+        { // debug only (溢出测试) 统计SStrategyOrderManage中的StrategyOrder数量
+            let strategy_order_num = strategy_order_manager.strategy_orders.len();
+            let opened_long_strategy_order_num = strategy_order_manager.long_opened_orders.len();
+            let opened_short_strategy_order_num = strategy_order_manager.short_opened_orders.len();
+            debug!("【溢出测试】统计StrategyOrderManage中的StrategyOrder数量 - \ttotal num:{:?}\tlong opened num:{:?}\tshort opened num:{:?}"
+            ,strategy_order_num,opened_long_strategy_order_num, opened_short_strategy_order_num);
+        }
+        //  2. 撤回所有未成交的open订单 todo （此处无需修改）需要同时撤回所有未成交的close
         for uuid in self.opening_orders.iter() {
             result.push(EStrategyAction::CancelOrder(uuid.clone()));
         }
+
         //  3. 根据当前盘口价计算挂单：
         // 3.1 计算当前价格&仓位
         let locked_assets = tp_order_map
@@ -374,35 +382,35 @@ impl TStrategy for SStrategyMk2 {
 
         let mut position = EOrderPosition::Close;
         let mut action = EOrderAction::Sell;
-        
+
         // todo 优化效率
         //  现象："3.2 循环计算卖单"的循环计算逻辑 对计算速度影响较大
         //  推测原因：strategy_order_manager.long_opened_orders仅保存uuid 为了得到SStrategyOrder 需要进行频繁回表操作
         //  建议：可以给SStrategyOrderManager添加一个函数 自动生成strategy_order_manager.long_opened_orders对应的SStrategyOrder数组
         let opened_orders_vec = match direction {
-                EOrderDirection::Long => { 
-                    let mut result = Vec::new();
-                    for (_, uuid_vec) in  strategy_order_manager.long_opened_orders.iter().rev() {
-                        for uuid in uuid_vec {
-                            result.push(strategy_order_manager.peek_by_id(uuid).unwrap())
-                        }
+            EOrderDirection::Long => {
+                let mut result = Vec::new();
+                for (_, uuid_vec) in strategy_order_manager.long_opened_orders.iter().rev() {
+                    for uuid in uuid_vec {
+                        result.push(strategy_order_manager.peek_by_id(uuid).unwrap())
                     }
-                    result
                 }
-                EOrderDirection::Short => { 
-                    let mut result = Vec::new();
-                    for (_, uuid_vec) in  strategy_order_manager.short_opened_orders.iter() {
-                        for uuid in uuid_vec {
-                            result.push(strategy_order_manager.peek_by_id(uuid).unwrap())
-                        }
+                result
+            }
+            EOrderDirection::Short => {
+                let mut result = Vec::new();
+                for (_, uuid_vec) in strategy_order_manager.short_opened_orders.iter() {
+                    for uuid in uuid_vec {
+                        result.push(strategy_order_manager.peek_by_id(uuid).unwrap())
                     }
-                    result
                 }
+                result
+            }
         };
-        
+
         for strategy_order in opened_orders_vec {
             if price >= cut_off_price {
-                break
+                break;
             }
             // info!("sell_cut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}", cut_off_price, direction,position,price,base_quantity,quote_quantity);
             match self.get_next_order_with_static_position(
@@ -499,48 +507,78 @@ impl TStrategy for SStrategyMk2 {
         for result in parse_action_results {
             // info!("strategy verify:\t{:?}", result);
             match result {
-                ERunnerSyncActionResult::OrderPlaced(order) => {
-                    // 尝试从opening_orders中加入该订单
+                ERunnerSyncActionResult::OrderPlaced(order, strategy_order_id) => {
+                    // 尝试向opening_orders中加入该订单 todo bug：(待测试)此处无法将OrderPlaced(order)和对应的StrategyOrder进行关联
                     self.opening_orders.insert(order.get_id());
-                    // 记录成功的订单
-                    match strategy_order_manager.peek_mut_by_order_id(&order.get_id()) {
-                        Err(_) => {
-                            // 找不到对应的strategy_order
-                            // 生成新的strategy_order
-                            let strategy_order = SStrategyOrder::new(&order);
-                            if let Some(order) = strategy_order_manager.add(strategy_order) {
+                    // 判断该订单是开仓单还是平仓单
+                    match strategy_order_id {
+                        None => {
+                            // 开仓单
+                            // 新建StrategyOrder并插入StrategyOrderManager
+                            if let Some(order) = strategy_order_manager.add_with_order(&order) {
                                 error!("order can not insert into strategy_order:{:?}", order);
                             }
                         }
-                        Ok(strategy_order) => {
-                            // 更新strategy_order
-                            if strategy_order.get_state() != EStrategyOrderState::Closing {
-                                error!("strategy_order state error, expected state Closing. strategy_order:{:?}", strategy_order);
-                            } else {
-                                if let Err(e) = strategy_order.bind_close(&order) {
+                        Some(strategy_order_id) => {
+                            // 平仓单
+                            // 从StrategyOrderManager中找到对应的StrategyOrderManager
+                            match strategy_order_manager.peek_mut_by_id(&strategy_order_id) {
+                                Err(e) => {
                                     error!("{:?}", e);
+                                }
+                                Ok(strategy_order) => {
+                                    if strategy_order.get_state() != EStrategyOrderState::Closing {
+                                        error!("strategy_order state error, expected state Closing. strategy_order:{:?}", strategy_order);
+                                    } else {
+                                        if let Err(e) = strategy_order.bind_close(&order) {
+                                            error!("{:?}", e);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                    // // 记录成功的订单
+                    // match strategy_order_manager.peek_mut_by_order_id(&order.get_id()) {
+                    //     Err(_) => {
+                    //         // 找不到对应的strategy_order
+                    //         // 生成新的strategy_order
+                    //         let strategy_order = SStrategyOrder::new(&order);
+                    //         if let Some(order) = strategy_order_manager.add(strategy_order) {
+                    //             error!("order can not insert into strategy_order:{:?}", order);
+                    //         }
+                    //     }
+                    //     Ok(strategy_order) => {
+                    //         // 更新strategy_order
+                    //         if strategy_order.get_state() != EStrategyOrderState::Closing {
+                    //             error!("strategy_order state error, expected state Closing. strategy_order:{:?}", strategy_order);
+                    //         } else {
+                    //             if let Err(e) = strategy_order.bind_close(&order) {
+                    //                 error!("{:?}", e);
+                    //             }
+                    //         }
+                    //     }
+                    // }
                 }
                 ERunnerSyncActionResult::OrderCanceled(order) => {
                     // 尝试从opening_orders中删除该订单
-                    self.opening_orders.remove(&order.get_id());
-                    // 更新strategy_order
+                    if false == self.opening_orders.remove(&order.get_id()) {
+                        error!("remove order from SStrategyMk2.opening_orders fail:{:?}", &order.get_id());
+                    }
+                    // 更新strategy_order todo bug (待测试)需要使用strategy_order_manager执行cancel_close和cancel_open 而非使用strategy_order调用以上函数
                     match strategy_order_manager.peek_mut_by_order_id(&order.get_id()) {
                         Err(e) => {
                             // 找不到对应的strategy_order
-                            error!("ERunnerSyncActionResult::OrderCanceled(order)-strategy_order_manager中在找不到对应的strategy_order:{:?}", e);
+                            error!("ERunnerSyncActionResult::OrderCanceled(order)-在strategy_order_manager中找不到对应的strategy_order:{:?}", e);
                         }
                         Ok(strategy_order) => {
                             // 更新strategy_order
                             if strategy_order.get_state() == EStrategyOrderState::Closing {
-                                if let Err(e) = strategy_order.cancel_close() {
+                                if let Err(e) = strategy_order_manager.cancel_close_by_order_id(&order.get_id()) {
                                     error!("{:?}", e);
                                 }
                             } else if strategy_order.get_state() == EStrategyOrderState::Opening {
-                                if let Err(e) = strategy_order.cancel_open() {
+                                if let Err(e) = strategy_order_manager.cancel_open_by_order_id(&order.get_id()) {
                                     error!("{:?}", e);
                                 }
                             }
@@ -549,5 +587,6 @@ impl TStrategy for SStrategyMk2 {
                 }
             }
         }
+        debug!("self.opening_orders lens after verify:{:?}", self.opening_orders.len());
     }
 }

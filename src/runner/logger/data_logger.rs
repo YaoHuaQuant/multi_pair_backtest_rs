@@ -9,7 +9,7 @@ use crate::data_runtime::asset::EAssetType;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
 use crate::runner::logger::user_unit::SDataLogUserUnit;
-use crate::utils::assets_denominate_usdt;
+use crate::utils::assets_map_denominate_usdt;
 
 /// 数据日志
 #[derive(Debug, Default)]
@@ -65,7 +65,7 @@ impl SDataLogger {
                 match map.get(as_type) {
                     Ok(map_slice) => {
                         new_map.merge_asset(map_slice.clone());
-                        assets_denominate_usdt(
+                        assets_map_denominate_usdt(
                             &new_map,
                             trading_pair_prices,
                         )
@@ -78,7 +78,7 @@ impl SDataLogger {
             let assets_available = &user_log.available_assets;
             let assets_locked = &user_log.locked_assets;
             let trading_pair_prices = &user_log.trading_pair_prices;
-            let total_usdt = assets_denominate_usdt(
+            let total_usdt = assets_map_denominate_usdt(
                 &assets_total,
                 trading_pair_prices,
             );
@@ -91,12 +91,12 @@ impl SDataLogger {
                 user_id: user_log.user_id,
                 user_name: user_log.user_name.clone(),
                 total_usdt,
-                total_available_usdt: assets_denominate_usdt(
+                total_available_usdt: assets_map_denominate_usdt(
                     &assets_available,
                     trading_pair_prices,
                 ),
                 assets_total_usdt: total_usdt - usdt_total,
-                total_locked_usdt: assets_denominate_usdt(
+                total_locked_usdt: assets_map_denominate_usdt(
                     &assets_locked,
                     trading_pair_prices,
                 ),

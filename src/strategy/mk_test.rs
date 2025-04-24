@@ -70,7 +70,7 @@ impl TStrategy for SStrategyMkTest {
         for result in parse_action_results {
             info!("strategy verify:\t{:?}", result);
             match result {
-                ERunnerSyncActionResult::OrderPlaced(order) => {
+                ERunnerSyncActionResult::OrderPlaced(order, _) => {
                     match order.get_action() {
                         EOrderAction::Buy => { self.remove_list.push_back(order.get_id()) }
                         EOrderAction::Sell => {}
