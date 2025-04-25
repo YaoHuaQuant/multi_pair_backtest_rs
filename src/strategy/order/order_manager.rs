@@ -181,10 +181,16 @@ impl SStrategyOrderManager {
     }
 
     // region --- 转发SStrategyOrder函数
-    /// 取消开单 删除结构体自身（通过外部方式自动析构）
-    pub fn cancel_open_by_order_id(&mut self, order_id: &Uuid) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
+    /// 取消开单 删除结构体自身（todo 需要获取StrategyOrder的所有权并返回）
+    pub fn cancel_open_by_order_id(&mut self, order_id: &Uuid) -> RStrategyOrderManagerResult<RStrategyOrderResult<SStrategyOrder>> {
         let strategy_order = self.peek_mut_by_order_id(order_id)?;
-        Ok(strategy_order.cancel_open())
+        let strategy_order_id = strategy_order.get_id();
+        match strategy_order.cancel_open() {
+            Err(e) => {Ok(Err(e))}
+            Ok(_) => {
+                Ok(Ok(self.pop_by_id(&strategy_order_id).unwrap()))
+            }
+        }
     }
 
     /// 开单结算
@@ -203,6 +209,7 @@ impl SStrategyOrderManager {
 
     /// 绑定平单
     /// 需要将订单移出opened_orders
+    /// 需要将平单加入order_strategy_order_index索引
     pub fn bind_close_by_order_id(&mut self, order_id: &Uuid, closing_order: &SOrder) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
         let strategy_order = self.peek_mut_by_order_id(order_id)?;
         let result = strategy_order.bind_close(closing_order);
@@ -210,6 +217,25 @@ impl SStrategyOrderManager {
         if let Ok(()) = result {
             if let Err(e) = self.remove_from_opened_orders(&strategy_order_id) {
                 error!("{:?}", e);
+            } else {
+                self.order_strategy_order_index.insert(closing_order.get_id(), strategy_order_id);
+            }
+        }
+        Ok(result)
+    }
+
+    /// 绑定平单
+    /// 需要将订单移出opened_orders
+    /// 需要将平单加入order_strategy_order_index索引
+    pub fn bind_close_by_id(&mut self, strategy_order_id: &Uuid, closing_order: &SOrder) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
+        let strategy_order = self.peek_mut_by_id(strategy_order_id)?;
+        let result = strategy_order.bind_close(closing_order);
+        let strategy_order_id = strategy_order.get_id();
+        if let Ok(()) = result {
+            if let Err(e) = self.remove_from_opened_orders(&strategy_order_id) {
+                error!("{:?}", e);
+            } else {
+                self.order_strategy_order_index.insert(closing_order.get_id(), strategy_order_id);
             }
         }
         Ok(result)
@@ -534,7 +560,7 @@ mod tests {
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
 
         let strategy_order = strategy_manager.peek_lowest_long_opened_order().unwrap().unwrap();
@@ -543,11 +569,11 @@ mod tests {
         // peek
         let r = strategy_manager.peek_highest_long_opened_order().unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
         let r = strategy_manager.peek_lowest_long_opened_order().unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
 
         // peek fail
@@ -561,35 +587,35 @@ mod tests {
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
 
         let r = strategy_manager.peek_highest_long_opened_order();
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(500));
 
         let r = strategy_manager.pop_highest_long_opened_order();
         assert!(matches!(r, Ok(_)));
-        let strategy_order  = r.unwrap().unwrap();
+        let strategy_order = r.unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(500));
-        let strategy_order  = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
-        let strategy_order  = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(200));
-        let strategy_order  = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        let strategy_order  = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        let strategy_order  = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_long_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(400));
 
         // pop fail
-        let r  = strategy_manager.pop_lowest_long_opened_order().unwrap();
+        let r = strategy_manager.pop_lowest_long_opened_order().unwrap();
         assert!(matches!(r, None));
-        let r  = strategy_manager.pop_highest_long_opened_order().unwrap();
+        let r = strategy_manager.pop_highest_long_opened_order().unwrap();
         assert!(matches!(r, None));
 
         // peek fail
@@ -613,7 +639,7 @@ mod tests {
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
 
         let strategy_order = strategy_manager.peek_lowest_short_opened_order().unwrap().unwrap();
@@ -622,11 +648,11 @@ mod tests {
         // peek
         let r = strategy_manager.peek_highest_short_opened_order().unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
         let r = strategy_manager.peek_lowest_short_opened_order().unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
 
         // peek fail
@@ -640,35 +666,35 @@ mod tests {
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
 
         let r = strategy_manager.peek_highest_short_opened_order();
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Some(_)));
-        let strategy_order  = r.unwrap();
+        let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(500));
 
         let r = strategy_manager.pop_highest_short_opened_order();
         assert!(matches!(r, Ok(_)));
-        let strategy_order  = r.unwrap().unwrap();
+        let strategy_order = r.unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(500));
-        let strategy_order  = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
-        let strategy_order  = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(200));
-        let strategy_order  = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        let strategy_order  = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        let strategy_order  = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
+        let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(400));
 
         // pop fail
-        let r  = strategy_manager.pop_lowest_short_opened_order().unwrap();
+        let r = strategy_manager.pop_lowest_short_opened_order().unwrap();
         assert!(matches!(r, None));
-        let r  = strategy_manager.pop_highest_short_opened_order().unwrap();
+        let r = strategy_manager.pop_highest_short_opened_order().unwrap();
         assert!(matches!(r, None));
 
         // peek fail

@@ -50,24 +50,29 @@
        1. 引入策略订单，建立开仓订单和平仓订单之间的映射，避免止损(不止损)。
        2. 设置最小止盈，保证开仓订单和平仓订单的利差高于手续费(有效止盈)。
 ### 20250424 - Mk2开发中
- - [ ] 计算效率问题
+ - [x] ~~计算效率问题~~
+   - **效率问题主要原因是挂单量较高导致，可以通过调整参数来限制挂单量来解决。**
    - 原因：
-     1. 由于引入了策略订单对（StrategyOrder），平仓单的价格必须根据已开仓订单来配置；而StrategyOrderManager中的OpenedOrders集合仅存储Uuid，需要进一步跳转才能获取到对应的StrategyOrder，此处的时间复杂度较高。
+     1. ~~由于引入了策略订单对（StrategyOrder），平仓单的价格必须根据已开仓订单来配置；而StrategyOrderManager中的OpenedOrders集合仅存储Uuid，需要进一步跳转才能获取到对应的StrategyOrder，此处的时间复杂度较高。~~
      2. （已解决）由于代码逻辑问题，导致平仓单挂单过密，计算量偏高。
    - 改进方案1：将StrategyOrderManager中的OpenedOrders集合的value从Uuid改为&StrategyOrder
    - 改进方案2：给StrategyOrderManager新增一个方法，用于返回一个StrategyOrder的数组（计算效率可能没差异）
  - 币价上涨过程中 仓位占比下跌过快 & 特殊情况下 现金价格与资产价格之和会发生突变（凭空多出很多现金）
    - [x] 原因1：（凭空多出很多现金）计算平仓单价格时 数值溢出 导致挂单价格为负数
    - [x] 原因2：（卖单挂单过于密集）逻辑问题导致卖单均以最低价格进行挂单
-   - [ ] 原因3：（卖单泄露）未执行的卖单没能成功地cancel掉
+   - [x] 原因3：（卖单泄露）未执行的卖单没能成功地cancel掉
      - 解决方案：
        1. 添加统计指标，统计runner处理每条k线处理的挂单量，处理之后的挂单量，runner接受strategy挂单后的挂单量。  
        2. debug
-   - [ ] 原因4：（原因3的父级）StrategyOrderManager溢出-部分StrategyOrder没能被正确地Cancel掉 导数挂单积累
+   - [x] 原因4：（原因3的父级）StrategyOrderManager溢出-部分StrategyOrder没能被正确地Cancel掉 导数挂单积累
+   - [x] 原因5：close订单和open订单的quantity不一致 需要将close订单的quantity强制修改为open订单的quantity
  - [x] python可视化程序 需要添加“交易量”相关数据
  - [x] 手续费结算问题
    - 描述：“累计手续费”会随着价格变化而变化
    - 原因：卖单手续费在结算时以基础资产计价，在展示时以计价资产计价。
    - 改进方案：在结算时改为基础资产计价。
- - [ ] 通讯协议Bug
+ - [x] 通讯协议Bug
    - StrategyOrder无法将已挂单的Close单和Open单进行关联，原因是通讯协议中没有将StrategyOrder的id进行回传。
+### 20250424 - Mk2调试中
+ - [ ] ~~统计未平仓订单数~~
+   - 工作量较大，需要修改TStrategy

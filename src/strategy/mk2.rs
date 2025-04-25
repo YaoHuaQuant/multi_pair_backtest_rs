@@ -4,7 +4,7 @@
 
 use std::cmp;
 use std::collections::HashSet;
-use log::{debug, error, info};
+use log::{debug, error};
 use rust_decimal::{
     Decimal,
     prelude::FromPrimitive,
@@ -12,7 +12,6 @@ use rust_decimal::{
 use uuid::Uuid;
 
 use crate::{
-    config::TRADDING_PAIR_BTC_USDT_MIN_QUANTITY,
     data_runtime::{
         asset::{
             asset::SAsset,
@@ -44,14 +43,20 @@ pub enum EStrategyMk2Error {
 pub struct SStrategyMk2 {
     /// 目标仓位占比
     pub target_position_ratio: Decimal,
-    /// 记录所有已挂单未成交的open订单 todo 需更名为 opening_and_closing_orders 即所有已挂单未成交的订单（包含已挂单未成交的close订单）
-    pub opening_orders: HashSet<Uuid>,
+    /// 记录所有已挂单未成交的订单
+    pub opening_and_closing_orders: HashSet<Uuid>,
     /// 策略订单管理器
     pub strategy_order_map: SStrategyTradingPairOrderMap,
     /// 当订单价格与盘口价格相差一定百分比时，需要停止挂单。
     pub cut_off_price_percentage: Decimal,
     /// 最低盈利百分比（不包括手续费）
     pub minimum_profit_percentage: Decimal,
+    /// open订单固定下单量百分比（close订单的下单量与open订单一致）
+    pub const_open_quantity_percentage: Decimal,
+    /// 最小订单价格间隙百分比
+    pub const_delta_price_min_percentage: Decimal,
+    /// 最大订单价格间隙 百分比(todo 是否需要？)
+    pub const_delta_price_max_percentage: Decimal,
 }
 
 /// 打包get_next_order_with_static_position的返回值
@@ -68,6 +73,9 @@ impl SStrategyMk2 {
         target_position_ratio: Decimal,
         cut_off_price_percentage: Decimal,
         minimum_profit_percentage: Decimal,
+        const_open_quantity_percentage: Decimal,
+        const_delta_price_min_percentage: Decimal,
+        const_delta_price_max_percentage: Decimal,
     ) -> Self {
         let mut strategy_order_map = SStrategyTradingPairOrderMap::default();
         strategy_order_map.inner.insert(ETradingPairType::BtcUsdt, SStrategyOrderManager::new());
@@ -75,20 +83,27 @@ impl SStrategyMk2 {
         strategy_order_map.inner.insert(ETradingPairType::BtcUsdCmFuture, SStrategyOrderManager::new());
         Self {
             target_position_ratio,
-            opening_orders: Default::default(),
+            opening_and_closing_orders: Default::default(),
             strategy_order_map,
             cut_off_price_percentage,
             minimum_profit_percentage,
+            const_open_quantity_percentage,
+            const_delta_price_min_percentage,
+            const_delta_price_max_percentage,
         }
     }
 
     pub fn default() -> Self {
         // 默认仓位50%
-        // 只在盘口价的±0.5%挂单
-        // 每单至少盈利0.02%
+        // 只在盘口价的±1.0%挂单
+        // 每单至少盈利0.04%
+        // 最小挂单间距为盘口价的0.01%
         Self::new(
             Decimal::from_f64(0.5).unwrap(),
-            Decimal::from_f64(0.005).unwrap(),
+            Decimal::from_f64(0.05).unwrap(),
+            Decimal::from_f64(0.0004).unwrap(),
+            Decimal::from_f64(TRADDING_PAIR_USDT_MIN_QUANTITY).unwrap(),
+            Decimal::from_f64(0.0001).unwrap(),
             Decimal::from_f64(0.0002).unwrap(),
         )
     }
@@ -111,13 +126,12 @@ impl SStrategyMk2 {
         let position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         // 目标仓位占比
         let target_position_ratio = self.target_position_ratio;
-        // 固定下单量（todo 参数化）
-        // let const_quantity: Decimal = Decimal::from_f64(TRADDING_PAIR_BTC_USDT_MIN_QUANTITY).unwrap();
-        let const_quantity: Decimal = Decimal::from_f64(TRADDING_PAIR_USDT_MIN_QUANTITY).unwrap() / price;
-        // 最小订单价格间隙（todo 参数化）
-        let const_delta_price_min = Decimal::from_f64(0.00001).unwrap() * price;
-        // 最大订单价格间隙 (todo 是否需要？)
-        let const_delta_price_max = Decimal::from_f64(0.00002).unwrap() * price;
+        // open订单固定下单量（close订单的下单量与open订单一致）
+        let const_open_quantity: Decimal = self.const_open_quantity_percentage / price;
+        // 最小订单价格间隙
+        let const_delta_price_min = self.const_delta_price_min_percentage * price;
+        // 最大订单价格间隙
+        let const_delta_price_max = self.const_delta_price_max_percentage * price;
         // 订单买卖操作
         let action = match direction {
             EOrderDirection::Long => {
@@ -137,10 +151,10 @@ impl SStrategyMk2 {
         // debug!("Mk2 仓位:{:.2?}%\t当前价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",position_ratio*Decimal::from(100), price, base_quantity, quote_quantity,const_quantity);
         let order_quantity = match action {
             EOrderAction::Buy => {
-                const_quantity
+                const_open_quantity
             }
             EOrderAction::Sell => {
-                -const_quantity
+                -const_open_quantity
             }
         };
         // 计算订单价格（不考虑策略订单对的情况）
@@ -171,8 +185,10 @@ impl SStrategyMk2 {
                 }
             };
         // 计算订单价格（考虑策略订单对的情况）
-        let order_price_and_id = if let EOrderPosition::Close = position {
-            // 平仓情况 考虑当前已开仓的订单 平仓单价格不能使开仓单发生亏损
+        let price_quantity_id: (Option<Decimal>, Decimal, Option<Uuid>) = if let EOrderPosition::Close = position {
+            // 平仓情况
+            // 考虑当前已开仓的订单 平仓单价格不能使开仓单发生亏损
+            // 平仓order的quantity必须与开仓order一致
             if let Some(strategy_order) = opened_strategy_order {
                 // 判断当前价格能否平仓？若不能平仓，则按照当开仓订单的价格进行调整。
                 (
@@ -186,50 +202,12 @@ impl SStrategyMk2 {
                             Some(cmp::min(max_buy_price, tmp_order_price))
                         }
                     },
+                    strategy_order.get_quantity(),
                     Some(strategy_order.get_id())
                 )
             } else {
-                (None, None)
+                (None, const_open_quantity, None)
             }
-            // let r = match direction {
-            //     // todo strategy_order_manager 没有发生状态转移 导致每次peek都是同一个strategy order
-            //     EOrderDirection::Long => { strategy_order_manager.peek_highest_long_opened_order() }
-            //     EOrderDirection::Short => { strategy_order_manager.peek_lowest_short_opened_order() }
-            // };
-            // match r {
-            //     Err(e) => {
-            //         // 策略订单管理器异常
-            //         error!("{:?}", e);
-            //         (None, None)
-            //     }
-            //     Ok(r) => {
-            //         match r {
-            //             None => {
-            //                 // 缺少已开仓订单 无法生成平仓单
-            //                 error!("{:?}", EStrategyMk2Error::LackOpenedOrderError);
-            //                 (None, None)
-            //             }
-            //             Some(strategy_order) => {
-            //                 // 找到对应的已开仓订单
-            //                 // 判断当前价格能否平仓？若不能平仓，则按照当开仓订单的价格进行调整。
-            //                 (
-            //                     match direction {
-            //                         EOrderDirection::Long => {
-            //                             let min_sell_price = strategy_order.get_open_price() * (Decimal::from(1) + self.minimum_profit_percentage + Decimal::from_f64(MAKER_ORDER_FEE * 2.0).unwrap());
-            //                             Some(cmp::min(min_sell_price, tmp_order_price))
-            //                         }
-            //                         EOrderDirection::Short => {
-            //                             let max_buy_price = strategy_order.get_open_price() * (Decimal::from(1) - self.minimum_profit_percentage - Decimal::from_f64(MAKER_ORDER_FEE * 2.0).unwrap());
-            //                             Some(cmp::max(max_buy_price, tmp_order_price))
-            //                         }
-            //                     },
-            //                     Some(strategy_order.get_id()
-            //                     )
-            //                 )
-            //             }
-            //         }
-            //     }
-            // }
         } else {
             // 开仓情况
             let order_price =
@@ -237,25 +215,25 @@ impl SStrategyMk2 {
                     EOrderAction::Buy => { cmp::min(price - const_delta_price_min, tmp_order_price) }
                     EOrderAction::Sell => { cmp::max(price + const_delta_price_min, tmp_order_price) }
                 };
-            (Some(order_price), None)
+            (Some(order_price), const_open_quantity, None)
         };
 
         // 加一层校验 防止数值溢出
-        let order_price_and_id = match order_price_and_id {
-            (Some(order_price), x) => {
+        let order_price_and_id = match price_quantity_id {
+            (Some(order_price), order_quantity, id) => {
                 let price = if order_price > Decimal::from(0) {
                     Some(order_price)
                 } else {
                     None
                 };
-                (price, x)
+                (price, order_quantity, id)
             }
-            (None, x) => { (None, x) }
+            (None, order_quantity, id) => { (None, order_quantity, id) }
         };
 
         match order_price_and_id {
-            (None, _) => { None }
-            (Some(order_price), id) => {
+            (None, _, _) => { None }
+            (Some(order_price), order_quantity, id) => {
                 // info!("Strategy Mk2 挂单\t-\tAction:{:?}\tprice:{:?}\tquantity:{:?}", action, order_price, const_quantity);
                 // 重新计算仓位、资产
                 let new_base_quantity = base_quantity + match action {
@@ -269,7 +247,7 @@ impl SStrategyMk2 {
                 Some(SNextOrderFormat {
                     id,
                     price: order_price,
-                    quantity: const_quantity,
+                    quantity: order_quantity,
                     base_quantity: new_base_quantity,
                     quote_quantity: new_quote_quantity,
                 })
@@ -295,32 +273,32 @@ impl TStrategy for SStrategyMk2 {
         let mut strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         // 1. 从runner获取order的执行情况，将成功执行的order进行记录。
 
-        debug!("self.opening_orders lens before ParseOrderResult :{:?}", self.opening_orders.len());
+        // debug!("self.opening_orders lens before ParseOrderResult :{:?}", self.opening_and_closing_orders.len());
         for order_result in order_result {
             // info!("strategy receive order result:\t{:?}", order_result);
             match order_result {
                 ERunnerParseOrderResult::OrderExecuted(order) => {
-                    // 删除已开仓的open订单 todo （此处无需修改）同时已经删除已开仓的close订单
-                    self.opening_orders.remove(&order.get_id());
-                    // 将调整策略订单状态（挂单状态改为已完成状态）
+                    // 删除opening/closing订单
+                    self.opening_and_closing_orders.remove(&order.get_id());
+                    // 将调整策略订单状态（挂单状态改为已完成（已开仓/已平仓）状态）
                     let order_id = &order.get_id();
                     match strategy_order_manager.peek_mut_by_order_id(order_id) {
                         Err(e) => {
-                            error!("{:?}", e);
+                            error!("SStrategyMk2::run():{:?}", e);
                         }
                         Ok(strategy_order) => {
                             match strategy_order.get_state() {
                                 EStrategyOrderState::Opening => {
                                     match strategy_order_manager.opened_by_order_id(order_id) {
-                                        Err(e) => { error!("{:?}", e); }
-                                        Ok(Err(e)) => { error!("{:?}", e); }
+                                        Err(e) => { error!("SStrategyMk2::run():{:?}", e); }
+                                        Ok(Err(e)) => { error!("SStrategyMk2::run():{:?}", e); }
                                         Ok(Ok(_)) => {}
                                     }
                                 }
                                 EStrategyOrderState::Closing => {
                                     match strategy_order_manager.closed_by_order_id(order_id) {
-                                        Err(e) => { error!("{:?}", e); }
-                                        Ok(Err(e)) => { error!("{:?}", e); }
+                                        Err(e) => { error!("SStrategyMk2::run():{:?}", e); }
+                                        Ok(Err(e)) => { error!("SStrategyMk2::run():{:?}", e); }
                                         Ok(Ok(_)) => {}
                                     }
                                 }
@@ -338,16 +316,17 @@ impl TStrategy for SStrategyMk2 {
             }
         }
 
-        debug!("self.opening_orders lens after ParseOrderResult:{:?}", self.opening_orders.len());
-        { // debug only (溢出测试) 统计SStrategyOrderManage中的StrategyOrder数量
-            let strategy_order_num = strategy_order_manager.strategy_orders.len();
-            let opened_long_strategy_order_num = strategy_order_manager.long_opened_orders.len();
-            let opened_short_strategy_order_num = strategy_order_manager.short_opened_orders.len();
-            debug!("【溢出测试】统计StrategyOrderManage中的StrategyOrder数量 - \ttotal num:{:?}\tlong opened num:{:?}\tshort opened num:{:?}"
-            ,strategy_order_num,opened_long_strategy_order_num, opened_short_strategy_order_num);
-        }
-        //  2. 撤回所有未成交的open订单 todo （此处无需修改）需要同时撤回所有未成交的close
-        for uuid in self.opening_orders.iter() {
+        // debug!("self.opening_orders lens after ParseOrderResult:{:?}", self.opening_and_closing_orders.len());
+        // { // debug only (溢出测试) 统计SStrategyOrderManage中的StrategyOrder数量
+        //     let strategy_order_num = strategy_order_manager.strategy_orders.len();
+        //     let opened_long_strategy_order_num = strategy_order_manager.long_opened_orders.len();
+        //     let opened_short_strategy_order_num = strategy_order_manager.short_opened_orders.len();
+        //     debug!("【溢出测试】统计StrategyOrderManage中的StrategyOrder数量 - \ttotal num:{:?}\tlong opened num:{:?}\tshort opened num:{:?}"
+        //     ,strategy_order_num,opened_long_strategy_order_num, opened_short_strategy_order_num);
+        // }
+        
+        //  2. 撤回所有opening/closing订单
+        for uuid in self.opening_and_closing_orders.iter() {
             result.push(EStrategyAction::CancelOrder(uuid.clone()));
         }
 
@@ -383,28 +362,24 @@ impl TStrategy for SStrategyMk2 {
         let mut position = EOrderPosition::Close;
         let mut action = EOrderAction::Sell;
 
-        // todo 优化效率
-        //  现象："3.2 循环计算卖单"的循环计算逻辑 对计算速度影响较大
-        //  推测原因：strategy_order_manager.long_opened_orders仅保存uuid 为了得到SStrategyOrder 需要进行频繁回表操作
-        //  建议：可以给SStrategyOrderManager添加一个函数 自动生成strategy_order_manager.long_opened_orders对应的SStrategyOrder数组
         let opened_orders_vec = match direction {
             EOrderDirection::Long => {
-                let mut result = Vec::new();
+                let mut tmp_opened_orders_vec = Vec::new();
                 for (_, uuid_vec) in strategy_order_manager.long_opened_orders.iter().rev() {
                     for uuid in uuid_vec {
-                        result.push(strategy_order_manager.peek_by_id(uuid).unwrap())
+                        tmp_opened_orders_vec.push(strategy_order_manager.peek_by_id(uuid).unwrap())
                     }
                 }
-                result
+                tmp_opened_orders_vec
             }
             EOrderDirection::Short => {
-                let mut result = Vec::new();
+                let mut tmp_opened_orders_vec = Vec::new();
                 for (_, uuid_vec) in strategy_order_manager.short_opened_orders.iter() {
                     for uuid in uuid_vec {
-                        result.push(strategy_order_manager.peek_by_id(uuid).unwrap())
+                        tmp_opened_orders_vec.push(strategy_order_manager.peek_by_id(uuid).unwrap())
                     }
                 }
-                result
+                tmp_opened_orders_vec
             }
         };
 
@@ -426,7 +401,7 @@ impl TStrategy for SStrategyMk2 {
                     break;
                 }
                 Some(SNextOrderFormat {
-                         id: id,
+                         id,
                          price: order_price,
                          quantity: order_quantity,
                          base_quantity: new_base_quantity,
@@ -444,7 +419,7 @@ impl TStrategy for SStrategyMk2 {
                     price = order_price;
                     base_quantity = new_base_quantity;
                     quote_quantity = new_quote_quantity;
-                    position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+                    // position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
                 }
             };
         }
@@ -492,7 +467,7 @@ impl TStrategy for SStrategyMk2 {
                     price = order_price;
                     base_quantity = new_base_quantity;
                     quote_quantity = new_quote_quantity;
-                    position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+                    // position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
                 }
             };
         }
@@ -503,13 +478,13 @@ impl TStrategy for SStrategyMk2 {
 
     fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>) {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
-        let mut strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
+        let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         for result in parse_action_results {
             // info!("strategy verify:\t{:?}", result);
             match result {
                 ERunnerSyncActionResult::OrderPlaced(order, strategy_order_id) => {
-                    // 尝试向opening_orders中加入该订单 todo bug：(待测试)此处无法将OrderPlaced(order)和对应的StrategyOrder进行关联
-                    self.opening_orders.insert(order.get_id());
+                    // 尝试向opening_orders中加入该订单
+                    self.opening_and_closing_orders.insert(order.get_id());
                     // 判断该订单是开仓单还是平仓单
                     match strategy_order_id {
                         None => {
@@ -524,62 +499,59 @@ impl TStrategy for SStrategyMk2 {
                             // 从StrategyOrderManager中找到对应的StrategyOrderManager
                             match strategy_order_manager.peek_mut_by_id(&strategy_order_id) {
                                 Err(e) => {
-                                    error!("{:?}", e);
+                                    error!("SStrategyMk2::verify():{:?}", e);
                                 }
                                 Ok(strategy_order) => {
-                                    if strategy_order.get_state() != EStrategyOrderState::Closing {
-                                        error!("strategy_order state error, expected state Closing. strategy_order:{:?}", strategy_order);
+                                    if strategy_order.get_state() != EStrategyOrderState::Opened {
+                                        error!("SStrategyMk2::verify():strategy_order state error, expected state Opened. strategy_order:{:?}", strategy_order);
                                     } else {
-                                        if let Err(e) = strategy_order.bind_close(&order) {
-                                            error!("{:?}", e);
+                                        match strategy_order_manager.bind_close_by_id(&strategy_order_id, &order) {
+                                            Err(e) => { error!("SStrategyMk2::verify():{:?}", e); }
+                                            Ok(x) => {
+                                                match x {
+                                                    Err(e) => { error!("SStrategyMk2::verify():{:?}", e); }
+                                                    Ok(_) => {}
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    // // 记录成功的订单
-                    // match strategy_order_manager.peek_mut_by_order_id(&order.get_id()) {
-                    //     Err(_) => {
-                    //         // 找不到对应的strategy_order
-                    //         // 生成新的strategy_order
-                    //         let strategy_order = SStrategyOrder::new(&order);
-                    //         if let Some(order) = strategy_order_manager.add(strategy_order) {
-                    //             error!("order can not insert into strategy_order:{:?}", order);
-                    //         }
-                    //     }
-                    //     Ok(strategy_order) => {
-                    //         // 更新strategy_order
-                    //         if strategy_order.get_state() != EStrategyOrderState::Closing {
-                    //             error!("strategy_order state error, expected state Closing. strategy_order:{:?}", strategy_order);
-                    //         } else {
-                    //             if let Err(e) = strategy_order.bind_close(&order) {
-                    //                 error!("{:?}", e);
-                    //             }
-                    //         }
-                    //     }
-                    // }
                 }
                 ERunnerSyncActionResult::OrderCanceled(order) => {
                     // 尝试从opening_orders中删除该订单
-                    if false == self.opening_orders.remove(&order.get_id()) {
-                        error!("remove order from SStrategyMk2.opening_orders fail:{:?}", &order.get_id());
+                    if false == self.opening_and_closing_orders.remove(&order.get_id()) {
+                        error!("SStrategyMk2::verify(): remove order from SStrategyMk2.opening_orders fail:{:?}", &order.get_id());
                     }
-                    // 更新strategy_order todo bug (待测试)需要使用strategy_order_manager执行cancel_close和cancel_open 而非使用strategy_order调用以上函数
+                    // 更新strategy_order
                     match strategy_order_manager.peek_mut_by_order_id(&order.get_id()) {
                         Err(e) => {
                             // 找不到对应的strategy_order
-                            error!("ERunnerSyncActionResult::OrderCanceled(order)-在strategy_order_manager中找不到对应的strategy_order:{:?}", e);
+                            error!("SStrategyMk2::verify(): ERunnerSyncActionResult::OrderCanceled(order)-在strategy_order_manager中找不到对应的strategy_order:\norder info:{:?}\nerror info:{:?}", &order, e);
                         }
                         Ok(strategy_order) => {
                             // 更新strategy_order
                             if strategy_order.get_state() == EStrategyOrderState::Closing {
-                                if let Err(e) = strategy_order_manager.cancel_close_by_order_id(&order.get_id()) {
-                                    error!("{:?}", e);
+                                match strategy_order_manager.cancel_close_by_order_id(&order.get_id()) {
+                                    Err(e) => { error!("SStrategyMk2::{:?}", e); }
+                                    Ok(x) => {
+                                        match x {
+                                            Err(e) => { error!("SStrategyMk2::{:?}", e); }
+                                            Ok(_) => {}
+                                        }
+                                    }
                                 }
                             } else if strategy_order.get_state() == EStrategyOrderState::Opening {
-                                if let Err(e) = strategy_order_manager.cancel_open_by_order_id(&order.get_id()) {
-                                    error!("{:?}", e);
+                                match strategy_order_manager.cancel_open_by_order_id(&order.get_id()) {
+                                    Err(e) => { error!("SStrategyMk2::{:?}", e); }
+                                    Ok(x) => {
+                                        match x {
+                                            Err(e) => { error!("SStrategyMk2::{:?}", e); }
+                                            Ok(_popped_strategy_order) => {}
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -587,6 +559,6 @@ impl TStrategy for SStrategyMk2 {
                 }
             }
         }
-        debug!("self.opening_orders lens after verify:{:?}", self.opening_orders.len());
+        // debug!("self.opening_orders lens after verify:{:?}", self.opening_and_closing_orders.len());
     }
 }

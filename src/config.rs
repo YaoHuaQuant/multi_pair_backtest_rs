@@ -12,7 +12,7 @@ pub static MAKER_ORDER_FEE: f64 = 0.0002;
 pub static TRADDING_PAIR_BTC_USDT_MIN_QUANTITY: f64 = 0.00001;
 
 /// USDT现货最低交易量(以计价资产USDT为单位)
-pub static TRADDING_PAIR_USDT_MIN_QUANTITY: f64 = 1.0;
+pub static TRADDING_PAIR_USDT_MIN_QUANTITY: f64 = 100.0;
 
 /// BTC币本位合约最低交易量(以基础资产BTC币本位合约为单位)
 pub static TRADDING_PAIR_BTC_USD_CM_MIN_QUANTITY: f64 = 1.0;
@@ -38,7 +38,7 @@ pub static INIT_BALANCE_BTC: f64 = 0.0;
 // pub fn config_date_from() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 27).expect("无效的日期"), NaiveTime::from_hms_opt(13, 40, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 // }
-// 
+//
 // /// 回测结束日期
 // pub fn config_date_to() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 28).expect("无效的日期"), NaiveTime::from_hms_opt(4, 22, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")

@@ -69,7 +69,7 @@ impl SDataLogUserUnit {
             user_id: user.id,
             user_name: user.name.clone(),
             trading_pair_prices: trading_pair_prices.clone(),
-            transfer_info:transfer_info.clone(),
+            transfer_info: transfer_info.clone(),
             total_assets: user.total_asset(),
             total_assets_usdt: assets_map_denominate_usdt(&user.total_asset(), &trading_pair_prices),
             total_usdt,
