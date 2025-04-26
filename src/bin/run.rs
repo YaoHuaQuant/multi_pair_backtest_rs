@@ -5,6 +5,7 @@ use multi_pair_backtest_rs::runner::back_trade::runner::SBackTradeRunner;
 use multi_pair_backtest_rs::script::SScript;
 use multi_pair_backtest_rs::strategy::mk1::SStrategyMk1;
 use multi_pair_backtest_rs::strategy::mk2::SStrategyMk2;
+use multi_pair_backtest_rs::strategy::mk3::SStrategyMk3;
 
 fn main() {
     dotenv().ok();
@@ -15,7 +16,7 @@ fn main() {
     // error!("发生错误: {}", "数据异常"); // 红色错误
 
     debug!("Scrypt初始化");
-    let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk2>::default();
+    let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3>::default();
 
     debug!("Scrypt运行");
     scrypt.run();

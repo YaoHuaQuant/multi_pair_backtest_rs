@@ -141,7 +141,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 }
             }
 
-            // 记录日志
+            // 记录日志 todo 记录盘口价格
             self.data_logger.add_kline_data(SDataLogKlineUnit::new(current_date, trading_pair_klines));
             for user in users.iter() {
                 let mut buy_order_num = 0;

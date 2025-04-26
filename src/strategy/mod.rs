@@ -6,7 +6,9 @@ use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlin
 pub mod mk_test;
 pub mod mk1;
 pub mod mk2;
+pub mod mk3;
 pub mod order;
+mod model;
 
 /// 策略接口
 pub trait TStrategy {
@@ -18,3 +20,4 @@ pub trait TStrategy {
     ) -> Vec<EStrategyAction>;
     fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>);
 }
+
