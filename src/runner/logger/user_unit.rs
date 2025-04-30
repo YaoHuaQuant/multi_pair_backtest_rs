@@ -7,6 +7,7 @@ use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::user::SUser;
 use crate::data_source::trading_pair::ETradingPairType;
+use crate::runner::logger::order_unit::SDataLogOrderUnit;
 use crate::runner::logger::transfer_unit::SDataLogTransferUnit;
 use crate::strategy::TStrategy;
 use crate::utils::assets_map_denominate_usdt;
@@ -22,6 +23,9 @@ pub struct SDataLogUserUnit {
 
     // -----交易信息-----
     pub transfer_info: SDataLogTransferUnit,
+    
+    // -----挂单信息-----
+    pub order_info: SDataLogOrderUnit,
 
     // -----资产信息-----
     /// 总资产
@@ -63,6 +67,22 @@ impl SDataLogUserUnit {
         let total_usdt = user.total_asset().get(&EAssetType::Usdt)
             .unwrap_or(&SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(0) })
             .balance;
+
+        let order_manager = user.tp_order_map.get(&ETradingPairType::BtcUsdt).unwrap();
+
+        let btc_usdt_highest_buy_price = match order_manager.peek_highest_buy_order().unwrap() {
+            None => { None }
+            Some(order) => { Some(order.get_price()) }
+        };
+        let btc_usdt_lowest_sell_price = match order_manager.peek_lowest_sell_order().unwrap() {
+            None => { None }
+            Some(order) => { Some(order.get_price()) }
+        };
+        
+        let order_info  = SDataLogOrderUnit{
+            btc_usdt_highest_buy_price,
+            btc_usdt_lowest_sell_price,
+        };
         // ------
         Self {
             time,
@@ -70,6 +90,7 @@ impl SDataLogUserUnit {
             user_name: user.name.clone(),
             trading_pair_prices: trading_pair_prices.clone(),
             transfer_info: transfer_info.clone(),
+            order_info,
             total_assets: user.total_asset(),
             total_assets_usdt: assets_map_denominate_usdt(&user.total_asset(), &trading_pair_prices),
             total_usdt,

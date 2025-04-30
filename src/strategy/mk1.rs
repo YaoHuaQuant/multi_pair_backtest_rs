@@ -49,6 +49,7 @@ use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
+use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::TStrategy;
 
 pub struct SStrategyMk1 {
@@ -238,5 +239,9 @@ impl TStrategy for SStrategyMk1 {
                 }
             }
         }
+    }
+
+    fn get_log_info(&self) -> SStrategyLogger {
+        SStrategyLogger::none()
     }
 }

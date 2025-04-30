@@ -8,6 +8,7 @@ use crate::data_runtime::order::EOrderAction;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
 use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
 use crate::data_source::trading_pair::ETradingPairType;
+use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::TStrategy;
 
 /// 测试用策略
@@ -79,5 +80,9 @@ impl TStrategy for SStrategyMkTest {
                 ERunnerSyncActionResult::OrderCanceled(_) => {}
             }
         }
+    }
+
+    fn get_log_info(&self) -> SStrategyLogger {
+        SStrategyLogger::none()
     }
 }

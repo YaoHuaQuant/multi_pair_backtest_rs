@@ -31,6 +31,7 @@ use crate::{
 };
 use crate::config::{MAKER_ORDER_FEE, TRADDING_PAIR_USDT_MIN_QUANTITY};
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
+use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::order::order::{EStrategyOrderState, RStrategyOrderResult, SStrategyOrder};
 use crate::strategy::order::order_manager::{RStrategyOrderManagerResult, SStrategyOrderManager};
 /// 订单管理器异常
@@ -567,5 +568,9 @@ impl TStrategy for SStrategyMk2 {
             }
         }
         // debug!("self.opening_orders lens after verify:{:?}", self.opening_and_closing_orders.len());
+    }
+
+    fn get_log_info(&self) -> SStrategyLogger {
+        SStrategyLogger::none()
     }
 }

@@ -126,6 +126,8 @@ impl SDataLogger {
                 target_position_ratio: user_log.target_position_ratio,
                 actual_position_ratio: user_log.get_actual_position_ratio(),
 
+                btc_usdt_highest_buy_price: user_log.order_info.btc_usdt_highest_buy_price,
+                btc_usdt_lowest_sell_price: user_log.order_info.btc_usdt_lowest_sell_price,
                 unfulfilled_buy_order_cnt: user_log.transfer_info.unfulfilled_buy_order_cnt,
                 unfulfilled_sell_order_cnt: user_log.transfer_info.unfulfilled_sell_order_cnt,
                 executed_buy_order_cnt: user_log.transfer_info.executed_buy_order_cnt,
@@ -164,6 +166,12 @@ struct SMergeOutput {
     pub target_position_ratio: Option<Decimal>,
     /// 实际仓位
     pub actual_position_ratio: Decimal,
+
+    // -----挂单信息-----
+    /// BTC现货交易对 最高买单
+    pub btc_usdt_highest_buy_price: Option<Decimal>,
+    /// BTC现货交易对 最低卖单
+    pub btc_usdt_lowest_sell_price: Option<Decimal>,
 
     // -----交易信息-----
     /// 挂单的买入交易数
