@@ -36,7 +36,8 @@ use crate::config::{INIT_BALANCE_USDT, MAKER_ORDER_FEE, TRADDING_PAIR_USDT_MIN_Q
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
-use crate::strategy::model::model_test::SPriceModelTest;
+use crate::strategy::model::model_sin_test::SPriceModelSin;
+use crate::strategy::model::model_step_test::SPriceModelStep;
 use crate::strategy::model::TPriceModel;
 use crate::strategy::order::order::{EStrategyOrderState, RStrategyOrderResult, SStrategyOrder};
 use crate::strategy::order::order_manager::{RStrategyOrderManagerResult, SStrategyOrderManager};
@@ -72,7 +73,7 @@ pub struct SStrategyMk3<M: TPriceModel> {
     pub pid_config: SStrategyPidConfig,
     /// 死区大小 取值范围(0, 1)
     pub dead_zone_range_percentage: Decimal,
-    /// 死区大小 取值范围(0, 1)
+    /// 活区大小 取值范围(0, 1)
     pub live_zone_range_percentage: Decimal,
 }
 
@@ -85,36 +86,97 @@ struct SNextOrderFormat {
     pub quote_quantity: Decimal,
 }
 
-impl SStrategyMk3<SPriceModelTest> {
+impl SStrategyMk3<SPriceModelSin> {
     pub fn default() -> Self {
         // 构建正弦波周期性价格模型
         // 周期2天
-        let period = 60.0 * 60.0 * 24.0 * 2.0;
-        // 振幅80%
-        let amplitude = Decimal::from_f64(0.8 / 2.0).unwrap();
+        let period = 60 * 60 * 24 * 2;
+        // 振幅10%
+        let amplitude = Decimal::from_f64(0.1 / 2.0).unwrap();
         // 原点
         let origin = Local.ymd(2025, 1, 1).and_hms(0, 0, 0);
-        // 期望均值仓位50%
-        let mean = Decimal::from_f64(0.5).unwrap();
-        let price_mode = SPriceModelTest::new(period, amplitude, origin, mean);
+        // 期望均值仓位10%
+        let mean = Decimal::from_f64(0.1).unwrap();
+        let price_model = SPriceModelSin::new(period, amplitude, origin, mean);
 
+        // 只在盘口价的±2.0%挂单
+        let cut_off_price_percentage = 0.02;
+        // 每单的最小盈利0.16%
+        let minimum_profit_percentage = 0.0016;
+        let maker_order_fee_percentage = MAKER_ORDER_FEE;
+        let open_quantity_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY;
+        // 订单最小价格间距
+        let delta_price_min_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY / INIT_BALANCE_USDT;
+        // 订单最大价格间距(无用参数)
+        let delta_price_max_percentage = 0.0002;
+        // 死区大小（等于开单与平单的价差最小值）
+        let dead_zone_range_percentage = maker_order_fee_percentage * 2.0 + minimum_profit_percentage;
+        // 活区大小
+        let live_zone_range_percentage = dead_zone_range_percentage;
+        let pid_p_parameter = 0.01; // pid比例项参数
+        // let pid_p_parameter = 1.0; // pid比例项参数（1.0代表没有比例项）
+        // let pid_i_parameter = 0.00025;  // pid积分项参数
+        let pid_i_parameter = 0.0;  // pid积分项参数(0.0代表没有积分项)
+        let pid_i_max_cumulative = 1.8; // pid积分项累计值最大值
+        Self::new(
+            price_model,
+            Decimal::from_f64(cut_off_price_percentage).unwrap(),
+            Decimal::from_f64(minimum_profit_percentage).unwrap(),
+            Decimal::from_f64(open_quantity_percentage).unwrap(),
+            Decimal::from_f64(delta_price_min_percentage).unwrap(),
+            Decimal::from_f64(delta_price_max_percentage).unwrap(),
+            Decimal::from_f64(maker_order_fee_percentage).unwrap(),
+            SStrategyPidConfig {
+                proportional: Decimal::from_f64(pid_p_parameter).unwrap(),
+                integral: Some(SPidIntegral::new(
+                    Decimal::from_f64(pid_i_parameter).unwrap(), // 积分项参数
+                    Decimal::from_f64(pid_i_max_cumulative).unwrap(),
+                )),
+                derivative: None,
+            },
+            Decimal::from_f64(dead_zone_range_percentage).unwrap(),
+            Decimal::from_f64(live_zone_range_percentage).unwrap(),
+        )
+    }
+}
+
+impl SStrategyMk3<SPriceModelStep> {
+    pub fn default() -> Self {
+        // 构建阶跃周期性价格模型
+        // 周期2天
+        let period = 60 * 60 * 24 * 2;
+        // 高点
+        let top = Decimal::from_f64(0.75).unwrap();
+        // 低点
+        let button = Decimal::from_f64(0.25).unwrap();
+        // 原点
+        let origin = Local.ymd(2025, 1, 1).and_hms(0, 0, 0);
+
+        // 构建模型
+        let price_model = SPriceModelStep::new(period, top, button, origin);
+        
         // 只在盘口价的±2.0%挂单
         let cut_off_price_percentage = 0.02;
         // 每单的最小盈利0.06%
         let minimum_profit_percentage = 0.0006;
         let maker_order_fee_percentage = MAKER_ORDER_FEE;
         let open_quantity_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY;
-        let delta_price_min_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY / INIT_BALANCE_USDT; // 订单最小价格间距
-        let delta_price_max_percentage = 0.0002; // 订单最大价格间距(无用参数)
-        let pid_p_parameter = 0.5; // pid比例项参数
+        // 订单最小价格间距
+        let delta_price_min_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY / INIT_BALANCE_USDT;
+        // 订单最大价格间距(无用参数)
+        let delta_price_max_percentage = 0.0002;
+        // 死区大小（等于开单与平单的价差最小值）
+        let dead_zone_range_percentage = maker_order_fee_percentage * 2.0 + minimum_profit_percentage;
+        // 活区大小
+        let live_zone_range_percentage = dead_zone_range_percentage;
+        // pid参数
+        let pid_p_parameter = 0.005; // pid比例项参数
         // let pid_p_parameter = 1.0; // pid比例项参数（1.0代表没有比例项）
-        let pid_i_parameter = 0.00025;  // pid积分项参数
-        // let pid_i_parameter = 0.0;  // pid积分项参数(0.0代表没有积分项)
+        // let pid_i_parameter = 0.00025;  // pid积分项参数
+        let pid_i_parameter = 0.0;  // pid积分项参数(0.0代表没有积分项)
         let pid_i_max_cumulative = 1.8; // pid积分项累计值最大值
-        let dead_zone_range_percentage = maker_order_fee_percentage * 2.0 + minimum_profit_percentage; // 死区大小（等于开单与平单的价差最小值）
-        let live_zone_range_percentage = 0.5; // 活区大小
         Self::new(
-            price_mode,
+            price_model,
             Decimal::from_f64(cut_off_price_percentage).unwrap(),
             Decimal::from_f64(minimum_profit_percentage).unwrap(),
             Decimal::from_f64(open_quantity_percentage).unwrap(),
@@ -350,19 +412,19 @@ impl<M: TPriceModel> SStrategyMk3<M> {
     /// 只允许在仓位过低的情况下买入
     fn dead_zone_control_by_position_ratio(
         &self, action: EOrderAction,
-        actual_position_ratio: Decimal,
+        // actual_position_ratio: Decimal,
         target_position_ratio: Decimal,
     ) -> Decimal {
         match action {
             EOrderAction::Sell => {
                 // 卖出 目标仓位不得低于死区上界
                 let dead_zone_top = target_position_ratio + self.dead_zone_range_percentage / Decimal::from(2);
-                cmp::max(dead_zone_top, actual_position_ratio)
+                cmp::max(dead_zone_top, target_position_ratio)
             }
             EOrderAction::Buy => {
                 // 买入 目标仓位不得高于死区下界
                 let dead_zone_button = target_position_ratio - self.dead_zone_range_percentage / Decimal::from(2);
-                cmp::min(dead_zone_button, actual_position_ratio)
+                cmp::min(dead_zone_button, target_position_ratio)
             }
         }
     }
@@ -393,20 +455,20 @@ impl<M: TPriceModel> SStrategyMk3<M> {
     /// 不允许在仓位过低的情况下买入
     fn live_zone_control_by_position_ratio(
         &self, action: EOrderAction,
-        actual_position_ratio: Decimal,
+        // actual_position_ratio: Decimal,
         target_position_ratio: Decimal,
     ) -> Decimal
     {
         match action {
             EOrderAction::Sell => {
-                // 卖出 目标仓位不得高于死区上界
+                // 卖出 目标仓位不得高于活区上界
                 let dead_zone_top = target_position_ratio + (Decimal::from(1) - target_position_ratio) * self.live_zone_range_percentage;
-                cmp::max(dead_zone_top, actual_position_ratio)
+                cmp::min(dead_zone_top, target_position_ratio)
             }
             EOrderAction::Buy => {
-                // 买入 目标仓位不得低于死区下界
-                let dead_zone_button = target_position_ratio - target_position_ratio * target_position_ratio;
-                cmp::min(dead_zone_button, actual_position_ratio)
+                // 买入 目标仓位不得低于活区下界
+                let dead_zone_button = target_position_ratio - target_position_ratio * self.live_zone_range_percentage;
+                cmp::max(dead_zone_button, target_position_ratio)
             }
         }
     }
@@ -516,9 +578,15 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         let mut quote_quantity = assets_quote.balance;
         // 实际仓位占比
         let mut position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+        // 软仓位占比（PI控制）
+        let mut soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
+        // debug!("Mk3:Sell\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
         // 死区/活区控制
-        // position_ratio = self.dead_zone_control_by_position_ratio(EOrderAction::Sell, position_ratio); // 死区
-        // position_ratio = self.live_zone_control_by_position_ratio(EOrderAction::Sell, position_ratio); // 活区
+        
+        // soft_target_position = self.dead_zone_control_by_position_ratio(EOrderAction::Sell, soft_target_position); // 死区
+        soft_target_position = self.live_zone_control_by_position_ratio(EOrderAction::Sell, soft_target_position); // 活区
+        
+        // debug!("Mk3:Sell\tsoft_target_position after 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
         // 截止价格
         let mut cut_off_price = price * (Decimal::from(1) + self.cut_off_price_percentage);
         // pid积分项累计
@@ -527,7 +595,6 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         }
 
         { // debug only
-            let soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
             let integral = match &mut self.pid_config.integral {
                 None => { Decimal::from(0) }
                 Some(integral) => {
@@ -567,25 +634,31 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         let mut count = 0;
 
         for strategy_order in opened_orders_vec {
-            count += 1; // todo debug
-            let open_order = strategy_order.get_open_price(); // todo debug
+            // count += 1; // todo debug
+            // let open_order = strategy_order.get_open_price(); // todo debug
 
             if price >= cut_off_price {
                 break;
             }
-            // info!("sell_cut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}", cut_off_price, direction,position,price,base_quantity,quote_quantity);
-            let soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
+            let dynamic_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, soft_target_position);
+            // info!("Mk3:Sell\tcut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}", 
+            //     cut_off_price, 
+            //     direction,
+            //     position,
+            //     price,base_quantity,
+            //     quote_quantity
+            // );
             match self.get_next_order_with_static_position(
                 direction,
                 position,
-                soft_target_position,
+                dynamic_target_position,
                 price,
                 base_quantity,
                 quote_quantity,
                 Some(strategy_order),
             ) {
                 None => {
-                    error!("error with self.get_next_order_with_static_position");
+                    error!("Mk3:Sell\terror with self.get_next_order_with_static_position");
                     break;
                 }
                 Some(SNextOrderFormat {
@@ -612,7 +685,11 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
                     quote_quantity = new_quote_quantity;
 
                     // todo debug
-                    // debug!("Mk3-已开仓订单\tNo.{:?}\t开仓价格:{:.2?}\t平仓价格:{:.2?}\t收益率{:.2?}%", count, open_order, order_price,(order_price-open_order)/open_order * Decimal::from(100) );
+                    // debug!("Mk3-已开仓订单\tNo.{:?}\t开仓价格:{:.2?}\t平仓价格:{:.2?}\t收益率{:.2?}%",
+                    //     count, strategy_order.get_open_price(), 
+                    //     order_price,
+                    //     (order_price-strategy_order.get_open_price())/strategy_order.get_open_price() * Decimal::from(100) 
+                    // );
                 }
             };
         }
@@ -626,25 +703,37 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         cut_off_price = price * (Decimal::from(1) - self.cut_off_price_percentage);
         position = EOrderPosition::Open;
         action = EOrderAction::Buy;
-
+        
+        soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
         // 死区/活区控制
-        // position_ratio = self.dead_zone_control_by_position_ratio(EOrderAction::Buy, position_ratio); // 死区
-        // position_ratio = self.live_zone_control_by_position_ratio(EOrderAction::Buy, position_ratio); // 活区
+        // debug!("Mk3:Buy\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
+        // debug!("Mk3:Buy\tposition_ratio:{:?}\ttarget_position_ratio:{:.4?}%", position_ratio, target_position_ratio*Decimal::from(100));
+        soft_target_position = self.dead_zone_control_by_position_ratio(EOrderAction::Buy, target_position_ratio); // 死区
+        // soft_target_position = self.live_zone_control_by_position_ratio(EOrderAction::Buy, target_position_ratio); // 活区
+        // debug!("Mk3:Buy\tsoft_target_position after 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
 
         while price > cut_off_price {
-            // info!("buy_cut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}",cut_off_price, direction, position, price, base_quantity, quote_quantity);
-            let soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
+            let dynamic_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, soft_target_position);
+            // info!("Mk3:Buy\tcut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tsoft_target_position:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}",
+            //     cut_off_price, 
+            //     direction, 
+            //     position, 
+            //     soft_target_position, 
+            //     price, 
+            //     base_quantity, 
+            //     quote_quantity
+            // );
             match self.get_next_order_with_static_position(
                 direction,
                 position,
-                soft_target_position,
+                dynamic_target_position,
                 price,
                 base_quantity,
                 quote_quantity,
                 None,
             ) {
                 None => {
-                    error!("error with self.get_next_order_with_static_position");
+                    error!("Mk3:Buy\terror with self.get_next_order_with_static_position");
                     break;
                 }
                 Some(SNextOrderFormat {
