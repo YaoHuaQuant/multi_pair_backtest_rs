@@ -33,9 +33,9 @@ pub struct SStrategyOrderManager {
     pub strategy_orders: HashMap<Uuid, SStrategyOrder>,
     /// 普通订单id-策略订单id 索引
     pub order_strategy_order_index: HashMap<Uuid, Uuid>,
-    /// 做多已开仓未平仓订单列表 K-价格 V-策略订单uuid列表
+    /// 做多已开仓未平仓订单列表 K-开仓价格 V-策略订单uuid列表
     pub long_opened_orders: BTreeMap<Decimal, Vec<Uuid>>,
-    /// 做空已开仓未平仓订单列表 K-价格 V-策略订单uuid列表
+    /// 做空已开仓未平仓订单列表 K-开仓价格 V-策略订单uuid列表
     pub short_opened_orders: BTreeMap<Decimal, Vec<Uuid>>,
 }
 
