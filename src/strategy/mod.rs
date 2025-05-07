@@ -11,6 +11,7 @@ pub mod mk3;
 pub mod order;
 pub mod model;
 pub mod logger;
+pub mod mk3_2;
 
 /// 策略接口
 pub trait TStrategy {

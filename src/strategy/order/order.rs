@@ -51,6 +51,8 @@ pub struct SStrategyOrder {
     quantity: Decimal,
     /// 开仓价格
     open_price: Decimal,
+    /// 期望平仓价格
+    expected_close_price: Option<Decimal>,
     /// 平仓价格
     close_price: Option<Decimal>,
 }
@@ -75,6 +77,7 @@ impl SStrategyOrder {
             direction,
             quantity,
             open_price,
+            expected_close_price: None,
             close_price: None,
         }
     }
@@ -169,6 +172,14 @@ impl SStrategyOrder {
 
     pub fn get_close_price(&self) -> Option<Decimal> {
         self.close_price
+    }
+    
+    pub fn get_expected_close_price(&self) -> Option<Decimal> {
+        self.expected_close_price
+    }
+    
+    pub fn set_expected_close_price(&mut self, expected_close_price: Option<Decimal>) {
+        self.expected_close_price = expected_close_price
     }
     // endregion --- getter and setter
 }

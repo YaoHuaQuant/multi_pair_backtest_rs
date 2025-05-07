@@ -166,7 +166,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
 
 
                 let transfer_info = transfer_info_map.get(&user.id).unwrap();
-                let target_position_ratio = Some(Decimal::from(user.strategy.get_log_info().target_position_ratio)); // todo
+                let target_position_ratio = Some(Decimal::from(user.strategy.get_log_info().target_position_ratio));
                 let user_data = SDataLogUserUnit::new(current_date, user, target_position_ratio, &self.trading_pair_prices, transfer_info);
                 let position_ratio = (user_data.total_assets_usdt - user_data.total_usdt) / user_data.total_assets_usdt * Decimal::from(100);
                 debug!("用户信息:{:?}\t仓位:{:.2?}%\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}\t买单数量:{:?}\t卖单数量:{:?}",
@@ -228,7 +228,6 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             // 操作方向校验
             if order.get_action() != EOrderAction::Buy {
                 log::error!("EOrderAction Error: Expected Buy - Actually {:?}", order.get_action());
-                // return Err(EBackTradeRunnerError::OrderActionError(order.action));
             }
             // 挂单价格大于等于当前k线最低价格，则买单成交。
             if order.get_price() < kline_unit_data.low_price {
@@ -257,7 +256,8 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         as_type: base_asset_type,
                         balance: base_quantity - base_quantity * maker_order_fee,
                     };
-
+                    
+                    // todo debug
                     // info!("结算买单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
 
                     user_asset_manager.merge_asset(obtain_base_asset);
@@ -277,7 +277,6 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             // 操作方向校验
             if order.get_action() != EOrderAction::Sell {
                 error!("EOrderAction Error: Expected Sell - Actually {:?}", order.get_action());
-                // return Err(EBackTradeRunnerError::OrderActionError(order.action));
             }
             // 挂单价格大于等于当前k线最低价格，则买单成交。
             if order.get_price() > kline_unit_data.high_price {
@@ -307,6 +306,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         balance: quote_quantity - quote_quantity * maker_order_fee,
                     };
 
+                    // todo debug
                     // info!("结算卖单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_base_asset, &obtain_quote_asset, &_consumed_base_asset);
 
                     user_asset_manager.merge_asset(obtain_quote_asset);
@@ -374,6 +374,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             Ok(removed_order_vec) => {
                 // 订单执行成功 进行资产结算
                 for mut order in removed_order_vec {
+                    // todo debug
                     // info!("取消订单: {:?}", order);
                     // 订单成功取消 释放锁定资产
                     if let Some(asset) = order.cancel() {
@@ -409,6 +410,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 if let Err(e) = new_order.submit(locked_quote_asset) {
                     error!("Error: {:?}", e);
                 }
+                // todo debug
                 // info!("新增订单: {:?}", &new_order);
                 if let Err(e) = order_manager.insert_order(new_order.clone()) {
                     error!("Error: {:?}", e);
