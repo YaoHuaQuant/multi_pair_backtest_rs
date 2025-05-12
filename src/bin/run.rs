@@ -20,7 +20,7 @@ fn main() {
 
     debug!("Scrypt初始化");
     // let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3<SPriceModelSin>>::default();
-    let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelStep>>::default();
+    let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelSin>>::default();
 
     debug!("Scrypt运行");
     scrypt.run();

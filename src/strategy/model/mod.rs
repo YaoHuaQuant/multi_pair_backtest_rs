@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 pub mod feedback_control;
 pub mod model_sin_test;
 pub mod model_step_test;
+mod model_long_term_trend;
 
 /// 价格模型接口
 pub trait TPriceModel {

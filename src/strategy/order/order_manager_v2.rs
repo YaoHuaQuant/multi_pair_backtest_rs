@@ -213,7 +213,7 @@ impl SStrategyOrderManagerV2 {
             EOrderDirection::Long => { &mut self.long_opened_orders }
             EOrderDirection::Short => { &mut self.short_opened_orders }
         };
-        let price_level = opened_orders.get_mut(&strategy_order.get_open_price());
+        let price_level = opened_orders.get_mut(&strategy_order.get_expected_close_price().unwrap());
         if let Some(level) = price_level {
             level.retain(|&id| id != *strategy_order_id);
             if level.is_empty() {

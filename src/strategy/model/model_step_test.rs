@@ -13,22 +13,22 @@ pub struct SPriceModelStep {
     /// 低点
     button: Decimal,
     /// 原点时间
-    origin: DateTime<Local>,
+    origin_date: DateTime<Local>,
 }
 impl SPriceModelStep {
-    pub fn new(period: i64, top: Decimal, button: Decimal, origin: DateTime<Local>) -> Self {
+    pub fn new(period: i64, top: Decimal, button: Decimal, origin_date: DateTime<Local>) -> Self {
         Self {
             period,
             top,
             button,
-            origin,
+            origin_date,
         }
     }
 }
 
 impl TPriceModel for SPriceModelStep {
     fn get_price(&self, time: DateTime<Local>) -> Option<Decimal> {
-        let duration = time.signed_duration_since(self.origin);
+        let duration = time.signed_duration_since(self.origin_date);
         let seconds = duration.num_seconds();
 
         let mo = ((seconds % self.period) + self.period) % self.period;

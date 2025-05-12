@@ -1,6 +1,6 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.6.4 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" modified="2025-05-08T08:29:24.048Z" etag="e87SwFankoPswA-O2tBV" version="24.6.4" type="device">
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.6.4 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" modified="2025-05-09T03:40:01.657Z" etag="mcbla7QFatsZjb0Yidaa" version="24.6.4" type="device">
   <diagram name="第 1 页" id="F4dAkYMisPp_Crrg1WQa">
-    <mxGraphModel dx="15518" dy="9508" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="5052" dy="3362" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -2531,7 +2531,7 @@
         <mxCell id="NuSqXRQeCFyoJjsh3Q7N-569" value="+ update_model(&amp;amp;mut self, todo) - 提供新数据 更新模型" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="NuSqXRQeCFyoJjsh3Q7N-564" vertex="1">
           <mxGeometry y="60" width="400.12" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="NuSqXRQeCFyoJjsh3Q7N-570" value="&lt;b style=&quot;font-size: 14px;&quot;&gt;SLongTremTrendModel 长周期趋势模型&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+        <mxCell id="NuSqXRQeCFyoJjsh3Q7N-570" value="&lt;b style=&quot;font-size: 14px;&quot;&gt;SPriceModelLongTremTrend 长周期趋势模型&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
           <mxGeometry x="1960.0000000000005" y="1475" width="400.12" height="60" as="geometry" />
         </mxCell>
         <mxCell id="NuSqXRQeCFyoJjsh3Q7N-572" value="+ get_price(&amp;amp;self, Date): Option&amp;lt;Decimal&amp;gt; - 根据给定时间 返回预测价格" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="NuSqXRQeCFyoJjsh3Q7N-570" vertex="1">
@@ -2540,7 +2540,7 @@
         <mxCell id="NuSqXRQeCFyoJjsh3Q7N-571" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=inherit;" parent="NuSqXRQeCFyoJjsh3Q7N-570" vertex="1">
           <mxGeometry y="52" width="400.12" height="8" as="geometry" />
         </mxCell>
-        <mxCell id="NuSqXRQeCFyoJjsh3Q7N-575" value="&lt;b style=&quot;font-size: 14px;&quot;&gt;SShortPeriodProbabilityModel 短周期概率模型&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+        <mxCell id="NuSqXRQeCFyoJjsh3Q7N-575" value="&lt;b style=&quot;font-size: 14px;&quot;&gt;S&lt;/b&gt;&lt;b style=&quot;font-size: 14px;&quot;&gt;PriceModel&lt;/b&gt;&lt;b style=&quot;font-size: 14px;&quot;&gt;ShortPeriodProbability 短周期概率模型&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
           <mxGeometry x="1960.0000000000005" y="1597" width="400.12" height="60" as="geometry" />
         </mxCell>
         <mxCell id="NuSqXRQeCFyoJjsh3Q7N-576" value="+ get_price(&amp;amp;self, Date): Option&amp;lt;Decimal&amp;gt; - 根据给定时间 返回预测价格" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" parent="NuSqXRQeCFyoJjsh3Q7N-575" vertex="1">

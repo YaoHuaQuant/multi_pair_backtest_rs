@@ -13,7 +13,7 @@ pub struct SPriceModelSin {
     /// 振幅
     amplitude: Decimal,
     /// 原点时间
-    origin: DateTime<Local>,
+    origin_date: DateTime<Local>,
     /// 曲线均值
     mean: Decimal,
 
@@ -23,11 +23,11 @@ pub struct SPriceModelSin {
     // buffered_value: Decimal,
 }
 impl SPriceModelSin {
-    pub fn new(period: i64, amplitude: Decimal, origin: DateTime<Local>, mean: Decimal) -> Self {
+    pub fn new(period: i64, amplitude: Decimal, origin_date: DateTime<Local>, mean: Decimal) -> Self {
         Self {
             period,
             amplitude,
-            origin,
+            origin_date,
             mean,
             // buffered_time: origin,
             // buffered_value: Decimal::from(0),
@@ -40,7 +40,7 @@ impl TPriceModel for SPriceModelSin {
         // if time == self.buffered_time {
         //     Some(self.buffered_value)
         // } else {
-        let duration = time.signed_duration_since(self.origin);
+        let duration = time.signed_duration_since(self.origin_date);
         let seconds = duration.num_seconds() as f64;
 
         let angle = 2.0 * PI * seconds / self.period as f64;

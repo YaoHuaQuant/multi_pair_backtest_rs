@@ -256,7 +256,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                         as_type: base_asset_type,
                         balance: base_quantity - base_quantity * maker_order_fee,
                     };
-                    
+
                     // todo debug
                     // info!("结算买单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
 

@@ -246,3 +246,35 @@ impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelStep>>
         }
     }
 }
+
+impl SScript<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelSin>>
+{
+    pub fn default() -> Self {
+        let user_config = SUserConfig {
+            user_name: USER_NAME.to_string(),
+            init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
+            init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
+        };
+        // let strategy = SStrategyMk1::default();
+        let strategy = SStrategyMk3_2::<SPriceModelSin>::default();
+        let users = vec![
+            SUser::<SStrategyMk3_2<SPriceModelSin>>::new(user_config, strategy)
+        ];
+
+        let runner_config = SBackTradeRunnerConfig {
+            taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),
+            maker_order_fee: Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
+            date_from: config_date_from(),
+            date_to: config_date_to(),
+        };
+
+        let rt = Runtime::new().unwrap();
+
+        let data_manager = rt.block_on(SDataManager::build(&runner_config.date_from, &runner_config.date_to));
+        let runner = rt.block_on(SBackTradeRunner::new(runner_config, data_manager));
+        SScript {
+            users,
+            runner,
+        }
+    }
+}

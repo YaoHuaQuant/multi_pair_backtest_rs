@@ -16,10 +16,10 @@ pub static TRADDING_PAIR_USDT_MIN_QUANTITY: f64 = 10.0;
 
 // /// USDT现货最低收益率百分比(不考虑手续费)
 // pub static TRADDING_PAIR_USDT_MIN_PROFIT_PERCENTAGE:f64 = 0.0016;
-// 
+//
 // /// USDT现货最高收益率百分比(不考虑手续费)
 // pub static TRADDING_PAIR_USDT_MAX_PROFIT_PERCENTAGE:f64 = 0.05;
-// 
+//
 // /// USDT现货平仓价最小间距（相比于开仓价的百分比）
 // pub static TRADDING_PAIR_USDT_CLOSE_PRICE_STEP_PERCENTAGE:f64 = 0.001;
 
@@ -47,7 +47,7 @@ pub static INIT_BALANCE_BTC: f64 = 0.0;
 // pub fn config_date_from() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 27).expect("无效的日期"), NaiveTime::from_hms_opt(13, 40, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 // }
-// 
+//
 // /// 回测结束日期
 // pub fn config_date_to() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 28).expect("无效的日期"), NaiveTime::from_hms_opt(4, 22, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
@@ -58,27 +58,27 @@ pub static INIT_BALANCE_BTC: f64 = 0.0;
 // 起始价格 100034.98 结束价格 99985.83
 // 最高价格 109194.17(+9.19%) 最低价格 89417.88(-10.06%)
 
-// /// 回测起始日期
-// pub fn config_date_from() -> DateTime<Local> {
-//     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2024, 12, 6).expect("无效的日期"), NaiveTime::from_hms_opt(03, 43, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
-// }
-// 
-// /// 回测结束日期
-// pub fn config_date_to() -> DateTime<Local> {
-//     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 2, 4).expect("无效的日期"), NaiveTime::from_hms_opt(13, 1, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
-// }
-
-// 回测配置3（Debug用）
-
 /// 回测起始日期
 pub fn config_date_from() -> DateTime<Local> {
-    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 1).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2024, 12, 6).expect("无效的日期"), NaiveTime::from_hms_opt(03, 43, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 }
 
 /// 回测结束日期
 pub fn config_date_to() -> DateTime<Local> {
-    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 5).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 2, 4).expect("无效的日期"), NaiveTime::from_hms_opt(13, 1, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 }
+
+// 回测配置3（Debug用）
+
+// /// 回测起始日期
+// pub fn config_date_from() -> DateTime<Local> {
+//     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 1).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+// }
+// 
+// /// 回测结束日期
+// pub fn config_date_to() -> DateTime<Local> {
+//     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 5).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+// }
 
 // 回测配置4（单边上涨 周期6天）
 // 回测周期(东八区)'2025-01-13 14:30:00' and '2025-01-20 05:18:00'
