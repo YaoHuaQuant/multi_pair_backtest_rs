@@ -36,8 +36,8 @@ use crate::config::{INIT_BALANCE_USDT, MAKER_ORDER_FEE, TRADDING_PAIR_USDT_MIN_Q
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
-use crate::strategy::model::model_sin_test::SPriceModelSin;
-use crate::strategy::model::model_step_test::SPriceModelStep;
+use crate::strategy::model::price_model_sin_test::SPriceModelSin;
+use crate::strategy::model::price_model_step_test::SPriceModelStep;
 use crate::strategy::model::TPriceModel;
 use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
 use crate::strategy::order::order_manager_v2::SStrategyOrderManagerV2;

@@ -49,7 +49,7 @@ mod tests {
     use chrono::{Duration, Local, TimeZone};
     use rust_decimal::Decimal;
     use rust_decimal::prelude::FromPrimitive;
-    use crate::strategy::model::model_step_test::SPriceModelStep;
+    use crate::strategy::model::price_model_step_test::SPriceModelStep;
     use crate::strategy::model::TPriceModel;
 
     #[test]

@@ -7,8 +7,8 @@ use multi_pair_backtest_rs::strategy::mk1::SStrategyMk1;
 use multi_pair_backtest_rs::strategy::mk2::SStrategyMk2;
 use multi_pair_backtest_rs::strategy::mk3::SStrategyMk3;
 use multi_pair_backtest_rs::strategy::mk3_2::SStrategyMk3_2;
-use multi_pair_backtest_rs::strategy::model::model_sin_test::SPriceModelSin;
-use multi_pair_backtest_rs::strategy::model::model_step_test::SPriceModelStep;
+use multi_pair_backtest_rs::strategy::model::price_model_sin_test::SPriceModelSin;
+use multi_pair_backtest_rs::strategy::model::price_model_step_test::SPriceModelStep;
 
 fn main() {
     dotenv().ok();

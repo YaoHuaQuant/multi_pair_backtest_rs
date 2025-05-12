@@ -65,7 +65,7 @@ mod tests {
     use chrono::{Duration, Local, TimeZone};
     use rust_decimal::Decimal;
     use rust_decimal::prelude::FromPrimitive;
-    use crate::strategy::model::model_sin_test::SPriceModelSin;
+    use crate::strategy::model::price_model_sin_test::SPriceModelSin;
     use crate::strategy::model::TPriceModel;
 
     #[test]

@@ -120,7 +120,7 @@ mod tests {
     use chrono::{Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
     use plotters::prelude::*;
     use rust_decimal::prelude::ToPrimitive;
-    use crate::strategy::model::model_long_term_trend::SPriceModelLongTermTrend;
+    use crate::strategy::model::price_model_long_term_trend::SPriceModelLongTermTrend;
     use crate::strategy::model::TPriceModel;
 
     #[test]

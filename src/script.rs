@@ -27,8 +27,8 @@ use crate::strategy::mk1::SStrategyMk1;
 use crate::strategy::mk2::SStrategyMk2;
 use crate::strategy::mk3::SStrategyMk3;
 use crate::strategy::mk3_2::SStrategyMk3_2;
-use crate::strategy::model::model_sin_test::SPriceModelSin;
-use crate::strategy::model::model_step_test::SPriceModelStep;
+use crate::strategy::model::price_model_sin_test::SPriceModelSin;
+use crate::strategy::model::price_model_step_test::SPriceModelStep;
 
 pub struct SScript<R, S>
 where
