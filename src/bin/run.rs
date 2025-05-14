@@ -18,11 +18,7 @@ fn main() {
     // warn!("这是一个警告");        // 黄色警告
     // error!("发生错误: {}", "数据异常"); // 红色错误
 
-    debug!("Scrypt初始化");
-    // let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3<SPriceModelSin>>::default();
-    let mut scrypt = SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelSin>>::default();
-
-    debug!("Scrypt运行");
-    scrypt.run();
+    // SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelSin>>::back_trader_single_thread_computing();
+    SScript::<SBackTradeRunner<SDataApiDb>, SStrategyMk3_2<SPriceModelSin>>::back_trader_multi_thread_computing();
 }
 

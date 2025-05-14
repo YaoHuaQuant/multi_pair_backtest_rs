@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
-use crate::config::{config_date_from, config_date_to, MAKER_ORDER_FEE, TAKER_ORDER_FEE};
+use crate::config::{config_date_from, config_date_to, fee::{MAKER_ORDER_FEE, TAKER_ORDER_FEE}};
 
 #[derive(Debug, Clone)]
 pub struct SBackTradeRunnerConfig {

@@ -32,15 +32,15 @@ use crate::{
         TStrategy,
     },
 };
-use crate::config::{INIT_BALANCE_USDT, MAKER_ORDER_FEE, TRADDING_PAIR_USDT_MIN_QUANTITY};
+use crate::config::{INIT_BALANCE_USDT, fee::MAKER_ORDER_FEE, SDebugConfig, TRADDING_PAIR_USDT_MIN_QUANTITY};
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
 use crate::strategy::model::price_model_sin_test::SPriceModelSin;
 use crate::strategy::model::price_model_step_test::SPriceModelStep;
 use crate::strategy::model::TPriceModel;
-use crate::strategy::order::order::{EStrategyOrderState, RStrategyOrderResult, SStrategyOrder};
-use crate::strategy::order::order_manager::{RStrategyOrderManagerResult, SStrategyOrderManager};
+use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
+use crate::strategy::order::order_manager::SStrategyOrderManager;
 /// 订单管理器异常
 #[derive(Debug)]
 pub enum EStrategyMk3Error {
@@ -86,8 +86,8 @@ struct SNextOrderFormat {
     pub quote_quantity: Decimal,
 }
 
-impl SStrategyMk3<SPriceModelSin> {
-    pub fn default() -> Self {
+impl Default for SStrategyMk3<SPriceModelSin> {
+    fn default() -> Self {
         // 构建正弦波周期性价格模型
         // 周期2天
         let period = 60 * 60 * 24 * 2;
@@ -140,8 +140,8 @@ impl SStrategyMk3<SPriceModelSin> {
     }
 }
 
-impl SStrategyMk3<SPriceModelStep> {
-    pub fn default() -> Self {
+impl Default for SStrategyMk3<SPriceModelStep> {
+    fn default() -> Self {
         // 构建阶跃周期性价格模型
         // 周期2天
         let period = 60 * 60 * 24 * 2;
@@ -154,7 +154,7 @@ impl SStrategyMk3<SPriceModelStep> {
 
         // 构建模型
         let price_model = SPriceModelStep::new(period, top, button, origin);
-        
+
         // 只在盘口价的±2.0%挂单
         let cut_off_price_percentage = 0.02;
         // 每单的最小盈利0.06%
@@ -480,6 +480,7 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         tp_order_map: &mut STradingPairOrderManagerMap,
         available_assets: &mut SAssetMap,
         runner_parse_result: SRunnerParseKlineResult,
+        debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction>
     {
         let mut result = Vec::new();
@@ -582,10 +583,10 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         let mut soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
         // debug!("Mk3:Sell\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
         // 死区/活区控制
-        
+
         // soft_target_position = self.dead_zone_control_by_position_ratio(EOrderAction::Sell, soft_target_position); // 死区
         soft_target_position = self.live_zone_control_by_position_ratio(EOrderAction::Sell, soft_target_position); // 活区
-        
+
         // debug!("Mk3:Sell\tsoft_target_position after 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
         // 截止价格
         let mut cut_off_price = price * (Decimal::from(1) + self.cut_off_price_percentage);
@@ -594,14 +595,14 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
             integral.add_up(target_position_ratio - position_ratio);
         }
 
-        { // debug only
+        if debug_config.is_info { // debug only
             let integral = match &mut self.pid_config.integral {
                 None => { Decimal::from(0) }
                 Some(integral) => {
                     integral.get_cumulative()
                 }
             };
-            debug!("soft_target_position:\t{:.4?}%\tintegral_cumulative:\t{:?}",
+            info!("soft_target_position:\t{:.4?}%\tintegral_cumulative:\t{:?}",
                 soft_target_position*Decimal::from(100), integral
             );
         }
@@ -703,7 +704,7 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         cut_off_price = price * (Decimal::from(1) - self.cut_off_price_percentage);
         position = EOrderPosition::Open;
         action = EOrderAction::Buy;
-        
+
         soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
         // 死区/活区控制
         // debug!("Mk3:Buy\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
@@ -766,7 +767,11 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3<M> {
         result
     }
 
-    fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>) {
+    fn verify(
+        &mut self, tp_type: &ETradingPairType,
+        parse_action_results: Vec<ERunnerSyncActionResult>,
+        debug_config: &SDebugConfig,
+    ) {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
         let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         for result in parse_action_results {

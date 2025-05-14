@@ -1,13 +1,26 @@
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 
-use crate::strategy::mk_test::SStrategyMkTest;
+/// 手续费配置
+pub mod fee {
+    /// 吃单手续费0.05%
+    pub static TAKER_ORDER_FEE: f64 = 0.0005;
 
-/// 吃单手续费0.05%
-pub static TAKER_ORDER_FEE: f64 = 0.0005;
+    /// 挂单手续费0.02%
+    pub static MAKER_ORDER_FEE: f64 = 0.0002;
+}
 
-/// 挂单手续费0.02%
-pub static MAKER_ORDER_FEE: f64 = 0.0002;
-
+/// 交易对配置
+pub mod trading_pair {
+    pub mod btc_usdt{
+        // todo
+    }
+    pub mod btc_usd_cm{
+        // todo
+    }
+    pub mod btc_usdt_future{
+        // todo
+    }
+}
 /// USDT现货最低交易量(以基础资产BTC为单位)
 pub static TRADDING_PAIR_BTC_USDT_MIN_QUANTITY: f64 = 0.00001;
 
@@ -29,6 +42,10 @@ pub static TRADDING_PAIR_BTC_USD_CM_MIN_QUANTITY: f64 = 1.0;
 /// BTC U本位合约最低交易量(以基础资产U币本位合约为单位)
 pub static TRADDING_PAIR_BTC_USDT_FUTURE_FUTURE_MIN_QUANTITY: f64 = 1.0;
 
+/// 用户相关配置
+pub mod user{
+    // todo
+}
 /// 账户名称
 pub static USER_NAME: &str = "Satoshi Nakamoto";
 
@@ -47,7 +64,7 @@ pub static INIT_BALANCE_BTC: f64 = 0.0;
 // pub fn config_date_from() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 27).expect("无效的日期"), NaiveTime::from_hms_opt(13, 40, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 // }
-//
+// 
 // /// 回测结束日期
 // pub fn config_date_to() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 28).expect("无效的日期"), NaiveTime::from_hms_opt(4, 22, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
@@ -74,7 +91,7 @@ pub fn config_date_to() -> DateTime<Local> {
 // pub fn config_date_from() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 1).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 // }
-// 
+//
 // /// 回测结束日期
 // pub fn config_date_to() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 5).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
@@ -110,5 +127,33 @@ pub fn config_date_to() -> DateTime<Local> {
 //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2024, 12, 20).expect("无效的日期"), NaiveTime::from_hms_opt(12, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
 // }
 
-/// 默认策略
-pub type DefaultStrategy = SStrategyMkTest;
+// 回测配置6（4年比特币周期）
+// 回测周期(东八区)'2018-08-28 00:00:00' and '2022-05-07 00:00:00'
+// 起始价格 6904 结束价格 36028.18
+// 最高价格 69000 最低价格 3157.67
+
+// /// 回测起始日期
+// pub fn config_date_from() -> DateTime<Local> {
+//     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2018, 08, 28).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+// }
+// 
+// /// 回测结束日期
+// pub fn config_date_to() -> DateTime<Local> {
+//     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2022, 5, 7).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+// }
+
+pub struct SDebugConfig {
+    /// 是否输出debug信息
+    pub is_debug:bool,
+    /// 是否输出info信息
+    pub is_info:bool,
+}
+
+impl Default for SDebugConfig {
+    fn default() -> Self {
+        Self {
+            is_debug: false,
+            is_info: true,
+        }
+    }
+}

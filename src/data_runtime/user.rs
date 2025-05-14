@@ -22,6 +22,7 @@ use crate::{
     protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult},
     strategy::TStrategy,
 };
+use crate::config::SDebugConfig;
 use crate::data_runtime::asset::asset_map::RAssetMapResult;
 
 #[derive(Debug, Clone)]
@@ -80,13 +81,21 @@ impl<S: TStrategy> SUser<S> {
     }
 
     /// 将执行器的处理结果反馈给策略模块 获取策略Action结果
-    pub fn get_strategy_result(&mut self, runner_parse_result: SRunnerParseKlineResult) -> Vec<EStrategyAction> {
-        self.strategy.run(&mut self.tp_order_map, &mut self.available_assets, runner_parse_result)
+    pub fn get_strategy_result(
+        &mut self, 
+        runner_parse_result: SRunnerParseKlineResult, 
+        debug_config:&SDebugConfig
+    ) -> Vec<EStrategyAction> {
+        self.strategy.run(&mut self.tp_order_map, &mut self.available_assets, runner_parse_result, debug_config)
     }
 
     /// 向策略模块反馈同步结果
-    pub fn verify_sync_result(&mut self, tp_type: &ETradingPairType, runner_parse_action_results: Vec<ERunnerSyncActionResult>) {
-        self.strategy.verify(tp_type, runner_parse_action_results)
+    pub fn verify_sync_result(
+        &mut self, tp_type: &ETradingPairType, 
+        runner_parse_action_results: Vec<ERunnerSyncActionResult>, 
+        debug_config:&SDebugConfig
+    ) {
+        self.strategy.verify(tp_type, runner_parse_action_results, debug_config)
     }
 
     /// 累计用户的总资产
@@ -142,7 +151,7 @@ mod tests {
             init_balance_usdt: Decimal::from(10000),
             init_balance_btc: Decimal::from(0),
         };
-        let mut user = SUser::new(user_config, SStrategyMkTest::new());
+        let mut user = SUser::new(user_config, SStrategyMkTest::default());
         let mut tp_order_map = STradingPairOrderManagerMap::default();
         let mut order_manager = SOrderManager::new();
 

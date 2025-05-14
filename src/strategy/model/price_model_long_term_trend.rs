@@ -19,7 +19,6 @@
 //! 3.1 T-(T>0)周期
 //! 3.2 x2-(0<=x2<=2pi)初始相位
 
-use std::convert::Into;
 use std::f32::consts::PI;
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use rust_decimal::Decimal;

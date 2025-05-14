@@ -42,7 +42,7 @@ use std::collections::HashSet;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
-use crate::config::TRADDING_PAIR_BTC_USDT_MIN_QUANTITY;
+use crate::config::{SDebugConfig, TRADDING_PAIR_BTC_USDT_MIN_QUANTITY};
 use crate::data_runtime::asset::asset::SAsset;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::EOrderAction;
@@ -70,8 +70,10 @@ impl SStrategyMk1 {
             cut_off_price_percentage,
         }
     }
+}
 
-    pub fn default() -> Self {
+impl Default for SStrategyMk1 {
+    fn default() -> Self {
         // 默认仓位50%
         Self::new(
             Decimal::from_f64(0.5).unwrap(),
@@ -86,6 +88,7 @@ impl TStrategy for SStrategyMk1 {
         tp_order_map: &mut STradingPairOrderManagerMap,
         available_assets: &mut SAssetMap,
         runner_parse_result: SRunnerParseKlineResult,
+        debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let mut result = Vec::new();
         // 1. 从runner获取order的执行情况，将成功执行的order进行记录。
@@ -224,7 +227,12 @@ impl TStrategy for SStrategyMk1 {
         result
     }
 
-    fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>) {
+    fn verify(
+        &mut self,
+        tp_type: &ETradingPairType,
+        parse_action_results: Vec<ERunnerSyncActionResult>,
+        debug_config: &SDebugConfig,
+    ) {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
         for result in parse_action_results {
             // info!("strategy verify:\t{:?}", result);

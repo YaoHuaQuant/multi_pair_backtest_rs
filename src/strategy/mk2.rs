@@ -4,7 +4,7 @@
 
 use std::cmp;
 use std::collections::HashSet;
-use log::{debug, error};
+use log::error;
 use rust_decimal::{
     Decimal,
     prelude::FromPrimitive,
@@ -29,11 +29,11 @@ use crate::{
         TStrategy,
     },
 };
-use crate::config::{MAKER_ORDER_FEE, TRADDING_PAIR_USDT_MIN_QUANTITY};
+use crate::config::{fee::MAKER_ORDER_FEE, SDebugConfig, TRADDING_PAIR_USDT_MIN_QUANTITY};
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::strategy::logger::SStrategyLogger;
-use crate::strategy::order::order::{EStrategyOrderState, RStrategyOrderResult, SStrategyOrder};
-use crate::strategy::order::order_manager::{RStrategyOrderManagerResult, SStrategyOrderManager};
+use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
+use crate::strategy::order::order_manager::SStrategyOrderManager;
 /// 订单管理器异常
 #[derive(Debug)]
 pub enum EStrategyMk2Error {
@@ -56,10 +56,8 @@ pub struct SStrategyMk2 {
     pub const_open_quantity_percentage: Decimal,
     /// 最小订单价格间隙百分比
     pub const_delta_price_min_percentage: Decimal,
-    /// 最大订单价格间隙 百分比(todo 是否需要？)
-    pub const_delta_price_max_percentage: Decimal,
     /// 挂单手续费
-    pub maker_order_fee:Decimal,
+    pub maker_order_fee: Decimal,
 }
 
 /// 打包get_next_order_with_static_position的返回值
@@ -71,6 +69,23 @@ struct SNextOrderFormat {
     pub quote_quantity: Decimal,
 }
 
+impl Default for SStrategyMk2 {
+    fn default() -> Self {
+        // 默认仓位50%
+        // 只在盘口价的±1.0%挂单
+        // 每单至少盈利0.04%
+        // 最小挂单间距为盘口价的0.01%
+        Self::new(
+            Decimal::from_f64(0.5).unwrap(),
+            Decimal::from_f64(0.05).unwrap(),
+            Decimal::from_f64(0.0004).unwrap(),
+            Decimal::from_f64(TRADDING_PAIR_USDT_MIN_QUANTITY).unwrap(),
+            Decimal::from_f64(0.0001).unwrap(),
+            Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
+        )
+    }
+}
+
 impl SStrategyMk2 {
     pub fn new(
         target_position_ratio: Decimal,
@@ -78,8 +93,7 @@ impl SStrategyMk2 {
         minimum_profit_percentage: Decimal,
         const_open_quantity_percentage: Decimal,
         const_delta_price_min_percentage: Decimal,
-        const_delta_price_max_percentage: Decimal,
-        maker_order_fee:Decimal
+        maker_order_fee: Decimal,
     ) -> Self {
         let mut strategy_order_map = SStrategyTradingPairOrderMap::default();
         strategy_order_map.inner.insert(ETradingPairType::BtcUsdt, SStrategyOrderManager::new());
@@ -93,25 +107,8 @@ impl SStrategyMk2 {
             minimum_profit_percentage,
             const_open_quantity_percentage,
             const_delta_price_min_percentage,
-            const_delta_price_max_percentage,
             maker_order_fee,
         }
-    }
-
-    pub fn default() -> Self {
-        // 默认仓位50%
-        // 只在盘口价的±1.0%挂单
-        // 每单至少盈利0.04%
-        // 最小挂单间距为盘口价的0.01%
-        Self::new(
-            Decimal::from_f64(0.5).unwrap(),
-            Decimal::from_f64(0.05).unwrap(),
-            Decimal::from_f64(0.0004).unwrap(),
-            Decimal::from_f64(TRADDING_PAIR_USDT_MIN_QUANTITY).unwrap(),
-            Decimal::from_f64(0.0001).unwrap(),
-            Decimal::from_f64(0.0002).unwrap(),
-            Decimal::from_f64(MAKER_ORDER_FEE).unwrap()
-        )
     }
 
     /// 以静态仓位为目标
@@ -136,8 +133,6 @@ impl SStrategyMk2 {
         let const_open_quantity: Decimal = self.const_open_quantity_percentage / price;
         // 最小订单价格间隙
         let const_delta_price_min = self.const_delta_price_min_percentage * price;
-        // 最大订单价格间隙
-        let const_delta_price_max = self.const_delta_price_max_percentage * price;
         // 订单买卖操作
         let action = match direction {
             EOrderDirection::Long => {
@@ -270,6 +265,7 @@ impl TStrategy for SStrategyMk2 {
         tp_order_map: &mut STradingPairOrderManagerMap,
         available_assets: &mut SAssetMap,
         runner_parse_result: SRunnerParseKlineResult,
+        debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let mut result = Vec::new();
         let SRunnerParseKlineResult {
@@ -484,7 +480,12 @@ impl TStrategy for SStrategyMk2 {
         result
     }
 
-    fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>) {
+    fn verify(
+        &mut self,
+        tp_type: &ETradingPairType,
+        parse_action_results: Vec<ERunnerSyncActionResult>,
+        debug_config: &SDebugConfig,
+    ) {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
         let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         for result in parse_action_results {

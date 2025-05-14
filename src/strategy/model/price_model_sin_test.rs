@@ -36,6 +36,7 @@ impl SPriceModelSin {
 }
 
 impl TPriceModel for SPriceModelSin {
+    /// todo 实际返回值是仓位 而不是价格
     fn get_price(&self, time: DateTime<Local>) -> Option<Decimal> {
         // if time == self.buffered_time {
         //     Some(self.buffered_value)

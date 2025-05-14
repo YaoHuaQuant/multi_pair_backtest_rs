@@ -138,7 +138,7 @@ mod tests {
                 init_balance_usdt: Decimal::from(10_000),
                 init_balance_btc: Decimal::from(1),
             },
-            SStrategyMkTest::new(),
+            SStrategyMkTest::default(),
         );
         let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
         trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(10_000));

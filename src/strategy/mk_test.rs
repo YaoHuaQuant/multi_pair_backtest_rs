@@ -3,6 +3,7 @@ use std::str::FromStr;
 use log::info;
 use rust_decimal::Decimal;
 use uuid::Uuid;
+use crate::config::SDebugConfig;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::EOrderAction;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
@@ -12,13 +13,13 @@ use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::TStrategy;
 
 /// 测试用策略
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SStrategyMkTest {
     pub remove_list: VecDeque<Uuid>,
 }
 
-impl SStrategyMkTest {
-    pub fn new() -> Self {
+impl Default for SStrategyMkTest {
+    fn default() -> Self {
         Self { remove_list: Default::default() }
     }
 }
@@ -29,6 +30,7 @@ impl TStrategy for SStrategyMkTest {
         tp_order_map: &mut STradingPairOrderManagerMap,
         available_assets: &mut SAssetMap,
         runner_parse_result: SRunnerParseKlineResult,
+        debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let SRunnerParseKlineResult {
             tp_type,
@@ -67,7 +69,12 @@ impl TStrategy for SStrategyMkTest {
         result
     }
 
-    fn verify(&mut self, tp_type: &ETradingPairType, parse_action_results: Vec<ERunnerSyncActionResult>) {
+    fn verify(
+        &mut self,
+        tp_type: &ETradingPairType,
+        parse_action_results: Vec<ERunnerSyncActionResult>,
+        debug_config: &SDebugConfig,
+    ) {
         for result in parse_action_results {
             info!("strategy verify:\t{:?}", result);
             match result {

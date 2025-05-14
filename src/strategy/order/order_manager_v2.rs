@@ -4,11 +4,10 @@ use std::ops::Bound::Excluded;
 
 use log::error;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
 use crate::data_runtime::order::EOrderDirection;
 use crate::data_runtime::order::order::SOrder;
-use crate::strategy::order::order::{EStrategyOrderState, RStrategyOrderResult, SStrategyOrder};
+use crate::strategy::order::order::{RStrategyOrderResult, SStrategyOrder};
 
 pub type RStrategyOrderManagerV2Result<T> = Result<T, EStrategyOrderManagerV2Error>;
 
@@ -217,7 +216,7 @@ impl SStrategyOrderManagerV2 {
         if let Some(level) = price_level {
             level.retain(|&id| id != *strategy_order_id);
             if level.is_empty() {
-                opened_orders.remove(&strategy_order.get_open_price());
+                opened_orders.remove(&strategy_order.get_expected_close_price().unwrap());
             }
         }
         Ok(())
@@ -596,14 +595,24 @@ mod tests {
             quantity: open_order.get_quantity(),
         }).unwrap();
         let close_order = manager.peek_order(&close_order_id).unwrap();
+        
+        let close_price = strategy_order.get_expected_close_price();
+        assert!(matches!(close_price, Some(_)));
+        let close_price = close_price.unwrap();
 
+        let r = strategy_manager.long_opened_orders.get(&close_price);
+        assert!(matches!(r, Some(_)));
+        let r = r.unwrap();
+        assert_eq!(r.len(), 1);
+        
         // bind close
         let r = strategy_manager.bind_close_by_order_id(&open_order_id, close_order);
         assert!(matches!(r, Ok(_)));
         let r = r.unwrap();
         assert!(matches!(r, Ok(_)));
 
-        let r = strategy_manager.long_opened_orders.get(&open_order.get_price());
+        let r = strategy_manager.long_opened_orders.get(&close_price);
+        dbg!(&r);
         assert!(matches!(r, None));
 
         // cancel close
@@ -612,7 +621,7 @@ mod tests {
         let r = r.unwrap();
         assert!(matches!(r, Ok(_)));
 
-        let r = strategy_manager.long_opened_orders.get(&(open_order.get_price() * Decimal::from_f64(1.01).unwrap()));
+        let r = strategy_manager.long_opened_orders.get(&close_price);
         // dbg!(&r);
         assert!(matches!(r, Some(_)));
         let r = r.unwrap();

@@ -4,7 +4,7 @@ use rust_decimal::Decimal;
 use crate::data_source::kline::SKlineUnitData;
 use crate::data_source::trading_pair::ETradingPairType;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SDataLogKlineUnit {
     pub time: DateTime<Local>,
     /// Btc现货价格

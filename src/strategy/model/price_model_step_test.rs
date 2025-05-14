@@ -27,6 +27,7 @@ impl SPriceModelStep {
 }
 
 impl TPriceModel for SPriceModelStep {
+    /// todo 实际返回值是仓位 而不是价格
     fn get_price(&self, time: DateTime<Local>) -> Option<Decimal> {
         let duration = time.signed_duration_since(self.origin_date);
         let seconds = duration.num_seconds();
