@@ -2,7 +2,7 @@
 //! 在Mk4的基础上
 //! 1）引入长周期趋势模型（价格模型+仓位模型）
 //! 2）将“只做多”策略改为“多空”策略
-//! 
+//!
 //! 多空策略：
 //! 1）挂买单
 //!     优先平空仓
@@ -14,8 +14,10 @@
 
 use std::cmp::{max, min};
 use std::collections::HashSet;
-use log::{debug, error, info};
+use chrono::{DateTime, Local};
+use log::{debug, error};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
 
 use crate::{
@@ -35,11 +37,15 @@ use crate::{
         TStrategy,
     },
 };
-use crate::config::{SDebugConfig, TRADDING_PAIR_USDT_MIN_QUANTITY};
-use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
+use crate::config::{SDebugConfig};
+use crate::config::fee::MAKER_ORDER_FEE;
+use crate::config::trading_pair::btc_usdt::TRADDING_PAIR_USDT_MIN_QUANTITY;
+use crate::config::user::INIT_BALANCE_USDT;
+use crate::data_runtime::order::EOrderDirection;
 use crate::strategy::logger::SStrategyLogger;
-use crate::strategy::model::feedback_control::SStrategyPidConfig;
+use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
 use crate::strategy::model::position_model::SPositionModel;
+use crate::strategy::model::price_model_long_term_trend::SPriceModelLongTermTrend;
 use crate::strategy::model::TPriceModel;
 use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
 use crate::strategy::order::order_manager_v2::SStrategyOrderManagerV2;
@@ -92,6 +98,120 @@ struct SNextOrderFormat {
     pub quote_quantity: Decimal,
 }
 
+impl Default for SStrategyMk4<SPriceModelLongTermTrend> {
+    fn default() -> Self {
+        // 构建长周期趋势模型
+        let position_max = 0.95;
+        let position_min = 0.05;
+        let price_model = SPriceModelLongTermTrend::default();
+
+        // 只在盘口价的±2.0%挂单
+        let cut_off_price_percentage = 0.02;
+        // 每单的最小盈利0.06%
+        let minimum_profit_percentage = 0.0006;
+        // 每单的最大盈利5.0%
+        let max_profit_percentage = 0.05;
+        // 平仓价最小间距为开仓价格的0.1%
+        let close_price_step_percentage = 0.001;
+        let maker_order_fee_percentage = MAKER_ORDER_FEE;
+        let open_quantity_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY;
+        // 订单最小价格间距
+        let delta_price_min_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY / INIT_BALANCE_USDT;
+        // 死区大小（等于开单与平单的价差最小值）
+        let dead_zone_range_percentage = maker_order_fee_percentage * 2.0 + minimum_profit_percentage;
+        // 活区大小
+        let live_zone_range_percentage = dead_zone_range_percentage;
+        // pid参数
+        // let pid_p_parameter = 0.005; // pid比例项参数
+        let pid_p_parameter = 1.0; // pid比例项参数（1.0代表没有比例项）
+        // let pid_i_parameter = 0.025;  // pid积分项参数
+        let pid_i_parameter = 0.0;  // pid积分项参数(0.0代表没有积分项)
+        let pid_i_max_cumulative = 1.8; // pid积分项累计值最大值
+        Self::new(
+            price_model,
+            Decimal::from_f64(cut_off_price_percentage).unwrap(),
+            Decimal::from_f64(minimum_profit_percentage).unwrap(),
+            Decimal::from_f64(max_profit_percentage).unwrap(),
+            Decimal::from_f64(close_price_step_percentage).unwrap(),
+            Decimal::from_f64(open_quantity_percentage).unwrap(),
+            Decimal::from_f64(delta_price_min_percentage).unwrap(),
+            Decimal::from_f64(maker_order_fee_percentage).unwrap(),
+            SStrategyPidConfig {
+                proportional: Decimal::from_f64(pid_p_parameter).unwrap(),
+                integral: Some(SPidIntegral::new(
+                    Decimal::from_f64(pid_i_parameter).unwrap(), // 积分项参数
+                    Decimal::from_f64(pid_i_max_cumulative).unwrap(),
+                )),
+                derivative: None,
+            },
+            Decimal::from_f64(dead_zone_range_percentage).unwrap(),
+            Decimal::from_f64(live_zone_range_percentage).unwrap(),
+            position_max,
+            position_min,
+        )
+    }
+}
+
+// impl Default for SStrategyMk4<SPriceModelSin> {
+//     fn default() -> Self {
+//         // 构建正弦波周期性价格模型
+//         // 周期2天
+//         // let period = 60 * 60 * 24 * 2;
+//         // 周期2小时
+//         let period = 60 * 60 * 2;
+//         // 振幅10%
+//         let amplitude = Decimal::from_f64(0.1 / 2.0).unwrap();
+//         // 原点
+//         let origin = Local.ymd(2025, 1, 1).and_hms(0, 0, 0);
+//         // 期望均值仓位10%
+//         let mean = Decimal::from_f64(0.1).unwrap();
+//         let price_model = SPriceModelSin::new(period, amplitude, origin, mean);
+//
+//         // 只在盘口价的±2.0%挂单
+//         let cut_off_price_percentage = 0.02;
+//         // 每单的最小盈利0.06%
+//         let minimum_profit_percentage = 0.0006;
+//         // 每单的最大盈利5.0%
+//         let max_profit_percentage = 0.05;
+//         // 平仓价最小间距为开仓价格的0.1%
+//         let close_price_step_percentage = 0.001;
+//         let maker_order_fee_percentage = MAKER_ORDER_FEE;
+//         let open_quantity_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY;
+//         // 订单最小价格间距
+//         let delta_price_min_percentage = TRADDING_PAIR_USDT_MIN_QUANTITY / INIT_BALANCE_USDT;
+//         // 死区大小（等于开单与平单的价差最小值）
+//         let dead_zone_range_percentage = maker_order_fee_percentage * 2.0 + minimum_profit_percentage;
+//         // 活区大小
+//         let live_zone_range_percentage = dead_zone_range_percentage;
+//         // pid参数
+//         // let pid_p_parameter = 0.005; // pid比例项参数
+//         let pid_p_parameter = 1.0; // pid比例项参数（1.0代表没有比例项）
+//         // let pid_i_parameter = 0.00025;  // pid积分项参数
+//         let pid_i_parameter = 0.0;  // pid积分项参数(0.0代表没有积分项)
+//         let pid_i_max_cumulative = 1.8; // pid积分项累计值最大值
+//         Self::new(
+//             price_model,
+//             Decimal::from_f64(cut_off_price_percentage).unwrap(),
+//             Decimal::from_f64(minimum_profit_percentage).unwrap(),
+//             Decimal::from_f64(max_profit_percentage).unwrap(),
+//             Decimal::from_f64(close_price_step_percentage).unwrap(),
+//             Decimal::from_f64(open_quantity_percentage).unwrap(),
+//             Decimal::from_f64(delta_price_min_percentage).unwrap(),
+//             Decimal::from_f64(maker_order_fee_percentage).unwrap(),
+//             SStrategyPidConfig {
+//                 proportional: Decimal::from_f64(pid_p_parameter).unwrap(),
+//                 integral: Some(SPidIntegral::new(
+//                     Decimal::from_f64(pid_i_parameter).unwrap(), // 积分项参数
+//                     Decimal::from_f64(pid_i_max_cumulative).unwrap(),
+//                 )),
+//                 derivative: None,
+//             },
+//             Decimal::from_f64(dead_zone_range_percentage).unwrap(),
+//             Decimal::from_f64(live_zone_range_percentage).unwrap(),
+//         )
+//     }
+// }
+
 impl<M: TPriceModel> SStrategyMk4<M> {
     pub fn new(
         price_model: M,
@@ -105,9 +225,11 @@ impl<M: TPriceModel> SStrategyMk4<M> {
         pid_config: SStrategyPidConfig,
         dead_zone_range_percentage: Decimal,
         live_zone_range_percentage: Decimal,
+        position_max: f64,
+        position_min: f64,
     ) -> Self
     {
-        let model = SPositionModel::from(price_model);
+        let model = SPositionModel::from(price_model, position_max, position_min);
         let mut strategy_order_map = SStrategyTradingPairOrderMapV2::default();
         let manager = SStrategyOrderManagerV2::from(
             minimum_profit_percentage,
@@ -141,7 +263,7 @@ impl<M: TPriceModel> SStrategyMk4<M> {
     fn get_next_order_with_given_position(
         &self,
         direction: EOrderDirection,
-        position: EOrderPosition,
+        action: EOrderAction,
         target_position_ratio: Decimal,
         price: Decimal, // 如果上一个挂单被执行时的价格
         base_quantity: Decimal, // 如果上一个挂单被执行时的基础资产量
@@ -155,26 +277,12 @@ impl<M: TPriceModel> SStrategyMk4<M> {
         let const_open_quantity: Decimal = self.const_open_quantity_percentage / price;
         // 最小订单价格间隙
         let const_delta_price_min = self.const_delta_price_min_percentage * price;
-        // 订单买卖操作
-        let action = match direction {
-            EOrderDirection::Long => {
-                match position {
-                    EOrderPosition::Open => { EOrderAction::Buy }
-                    EOrderPosition::Close => { EOrderAction::Sell }
-                }
-            }
-            EOrderDirection::Short => {
-                match position {
-                    EOrderPosition::Open => { EOrderAction::Sell }
-                    EOrderPosition::Close => { EOrderAction::Buy }
-                }
-            }
-        };
 
-        // debug!("Mk4 action:{:?}\t仓位:{:.2?}%\t当前价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",action, position_ratio*Decimal::from(100), price, base_quantity, quote_quantity,const_open_quantity);
-        // if let EOrderAction::Sell = action {
-        //     debug!("Mk4 action:{:?}\t仓位:{:.2?}%\t当前价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",action, position_ratio*Decimal::from(100), price, base_quantity, quote_quantity,const_open_quantity);
-        // }
+        {
+            // debug!("Mk4 get_next_order_with_given_position:{:?}\t仓位:{:.2?}%\t当前价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",action, position_ratio*Decimal::from(100), price, base_quantity, quote_quantity,const_open_quantity);
+            // debug!("Mk4::get_next_order_with_given_position: target_position_ratio:\t{:.4?}%", target_position_ratio * Decimal::from(100));
+        }
+
         let order_quantity = match action {
             EOrderAction::Buy => {
                 const_open_quantity
@@ -195,13 +303,35 @@ impl<M: TPriceModel> SStrategyMk4<M> {
             } else {
                 match (action, position_ratio > target_position_ratio) {
                     (EOrderAction::Buy, true) | (EOrderAction::Sell, false) => {
-                        // 实际仓位大于目标仓位 挂买单：等待下跌 降低仓位
-                        // 实际仓位小于目标仓位 挂卖单：等待上涨 提升仓位
-                        target_position_ratio * quote_quantity / (base_quantity + order_quantity - target_position_ratio * base_quantity)
+                        // 等待策略
+                        // 做多 买单 实际仓位大于目标仓位：等待下跌 降低仓位
+                        // 做多 卖单 实际仓位小于目标仓位：等待上涨 提升仓位
+                        // 做空 买单 实际仓位大于目标仓位：等待上涨 降低仓位
+                        // 做空 卖单 实际仓位小于目标仓位：等待下跌 提升仓位 不进行挂单
+                        { // debug
+                            // debug!("get_next_order_with_given_position: action:{:?}\tposition_ratio:\t{:.4?}%\ttarget_position_ratio:\t{:.4?}%", action, position_ratio*Decimal::from(100), target_position_ratio*Decimal::from(100));
+                            // debug!("get_next_order_with_given_position: tmp_order_price:\t{:.4?}", target_position_ratio * quote_quantity / (base_quantity + order_quantity - target_position_ratio * base_quantity));
+                            // debug!("get_next_order_with_given_position: target_position_ratio:\t{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}\torder_quantity:{:?}", 
+                            //     target_position_ratio,
+                            //     base_quantity,
+                            //     quote_quantity,
+                            //     order_quantity
+                            // );
+                        }
+                        if target_position_ratio < Decimal::from(0) && action == EOrderAction::Sell && direction == EOrderDirection::Short {
+                            // 做空 卖单 实际仓位小于目标仓位：等待下跌 不进行挂单(挂一个极高价位的单)
+                            price * Decimal::from(2)
+                        } else {
+                            target_position_ratio * quote_quantity / (base_quantity + order_quantity - target_position_ratio * base_quantity)
+                        }
                     }
                     (EOrderAction::Sell, true) | (EOrderAction::Buy, false) => {
-                        // 实际仓位大于目标仓位 挂卖单：上涨减仓 降低仓位
-                        // 实际仓位小于目标仓位 挂买单：下跌加仓 提升仓位
+                        // 主动买卖策略
+                        // 做多 卖单 实际仓位大于目标仓位：上涨减仓 降低仓位
+                        // 做多 买单 实际仓位小于目标仓位：下跌加仓 提升仓位
+                        // 做空 卖单 实际仓位大于目标仓位：上涨加仓 降低仓位
+                        // 做空 买单 实际仓位小于目标仓位：下跌减仓 提升仓位
+
                         // 选择可挂单价格范围内 距离盘口最近的价格
                         price + match action {
                             EOrderAction::Buy => { -const_delta_price_min }
@@ -215,6 +345,10 @@ impl<M: TPriceModel> SStrategyMk4<M> {
             EOrderAction::Buy => { min(price - const_delta_price_min, tmp_order_price) }
             EOrderAction::Sell => { max(price + const_delta_price_min, tmp_order_price) }
         };
+
+        { // debug
+            // debug!("get_next_order_with_given_position: order_price:\t{:.4?}", order_price)
+        }
 
         let order_quantity = match opened_strategy_order {
             None => { const_open_quantity }
@@ -246,7 +380,7 @@ impl<M: TPriceModel> SStrategyMk4<M> {
     }
 
     /// 根据静态目标仓位和实际仓位
-    /// 获取动态目标仓位
+    /// 获取动态目标仓位（即静态仓位+PID控制）
     fn get_dynamic_position_with_static_position(
         &self,
         price: Decimal, // 收盘价
@@ -275,7 +409,8 @@ impl<M: TPriceModel> SStrategyMk4<M> {
     fn dead_zone_control_by_position_ratio(
         &self, action: EOrderAction,
         target_position_ratio: Decimal,
-    ) -> Decimal {
+    ) -> Decimal
+    {
         match action {
             EOrderAction::Sell => {
                 // 卖出 目标仓位不得低于死区上界
@@ -297,7 +432,8 @@ impl<M: TPriceModel> SStrategyMk4<M> {
     /// 不允许在仓位过高的情况下卖出
     /// 不允许在仓位过低的情况下买入
     fn live_zone_control_by_position_ratio(
-        &self, action: EOrderAction,
+        &self,
+        action: EOrderAction,
         target_position_ratio: Decimal,
     ) -> Decimal
     {
@@ -313,6 +449,416 @@ impl<M: TPriceModel> SStrategyMk4<M> {
                 max(dead_zone_button, target_position_ratio)
             }
         }
+    }
+
+    /// open订单挂单逻辑
+    /// 返回值(生成的订单集合, 结束状态的price, 结束状态的base_quantity, 结束状态的quote_quantity)
+    fn generate_open_orders(
+        &self,
+        direction: EOrderDirection,
+        tp_type: ETradingPairType,
+        price: Decimal, // 盘口价
+        base_quantity: Decimal,
+        quote_quantity: Decimal,
+        target_position_ratio: Decimal,
+        debug_config: &SDebugConfig,
+    ) -> (Vec<EStrategyAction>, Decimal, Decimal, Decimal)
+    {
+        let mut tmp_price = price;
+        let mut tmp_base_quantity = base_quantity;
+        let mut tmp_quote_quantity = quote_quantity;
+        let mut orders = Vec::new();
+        let action = match direction {
+            EOrderDirection::Long => { EOrderAction::Buy }
+            EOrderDirection::Short => { EOrderAction::Sell }
+        };
+        let cut_off_price = match action {
+            EOrderAction::Buy => { tmp_price * (Decimal::from(1) - self.cut_off_price_percentage) }
+            EOrderAction::Sell => { tmp_price * (Decimal::from(1) + self.cut_off_price_percentage) }
+        };
+
+        // 开仓 死区控制
+        // debug!("Mk4:Buy\tsoft_target_position before 死区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
+        // debug!("Mk4:Buy\tposition_ratio:{:?}\ttarget_position_ratio:{:.4?}%", position_ratio, target_position_ratio*Decimal::from(100));
+        let target_position_ratio = self.dead_zone_control_by_position_ratio(action, target_position_ratio); // 死区
+        // debug!("Mk4:Buy\tsoft_target_position after 死区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
+
+
+        { // debug
+            // let position = EOrderPosition::Open;
+            // debug!("MK4::generate_open_orders: position:{:?}\taction:{:?}\ttarget_position_ratio:{:.4?}%\ttmp_price:{:?}\tcut_off_price:{:.4?}"
+            //     ,position
+            //     ,action
+            //     ,target_position_ratio*Decimal::from(100)
+            //     ,tmp_price
+            //     ,cut_off_price
+            // );
+        }
+
+        while match action {
+            EOrderAction::Buy => { tmp_price > cut_off_price }
+            EOrderAction::Sell => { tmp_price < cut_off_price }
+        } {
+            // let target_position_ratio = self.get_dynamic_position_with_static_position(tmp_price, tmp_base_quantity, tmp_quote_quantity, target_position_ratio);
+            // {
+            //     let position = EOrderPosition::Open;
+            //     info!("Mk4:\taction:{:?}\tcut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\ttarget_position_ratio:{:.4?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}",
+            //         action,
+            //         cut_off_price,
+            //         direction,
+            //         position,
+            //         target_position_ratio * Decimal::from(100),
+            //         price,
+            //         base_quantity,
+            //         quote_quantity
+            //     );
+            // }
+            match self.get_next_order_with_given_position(
+                direction,
+                action,
+                target_position_ratio,
+                tmp_price,
+                tmp_base_quantity,
+                tmp_quote_quantity,
+                None,
+            ) {
+                None => {
+                    error!("Mk4:\t{:?}\terror with self.get_next_order_with_static_position", action);
+                    break;
+                }
+                Some(SNextOrderFormat {
+                         id,
+                         price: order_price,
+                         quantity: order_quantity,
+                         base_quantity: new_base_quantity,
+                         quote_quantity: new_quote_quantity,
+                     }) => {
+                    match action {
+                        EOrderAction::Buy => {
+                            if order_price <= cut_off_price {
+                                break;
+                            }
+                        }
+                        EOrderAction::Sell => {
+                            if order_price >= cut_off_price {
+                                break;
+                            }
+                        }
+                    }
+
+                    // 新建订单
+                    orders.push(EStrategyAction::NewOrder(SStrategyOrderAdd {
+                        id,
+                        tp_type,
+                        action,
+                        price: order_price,
+                        quantity: order_quantity,
+                    }));
+                    { // debug
+                        // debug!("MK4::generate_open_orders: new order\ttp_type:{:?}\taction:{:?}\tprice:{:.2?}\tquantity:{:?}"
+                        //     ,tp_type
+                        //     ,action
+                        //     ,order_price
+                        //     ,order_quantity
+                        // );
+                    }
+                    // 更新数据
+                    tmp_price = order_price;
+                    tmp_base_quantity = new_base_quantity;
+                    tmp_quote_quantity = new_quote_quantity;
+                }
+            };
+        }
+
+
+        (orders, tmp_price, tmp_base_quantity, tmp_quote_quantity)
+    }
+
+    /// close订单挂单逻辑
+    /// 返回值(生成的订单集合, 结束状态的price, 结束状态的base_quantity, 结束状态的quote_quantity)
+    fn generate_close_orders(
+        &self,
+        direction: EOrderDirection,
+        tp_type: ETradingPairType,
+        price: Decimal, // 盘口价
+        base_quantity: Decimal,
+        quote_quantity: Decimal,
+        target_position_ratio: Decimal,
+        strategy_order_manager: &SStrategyOrderManagerV2,
+        debug_config: &SDebugConfig,
+    ) -> (Vec<EStrategyAction>, Decimal, Decimal, Decimal)
+    {
+        let mut tmp_price = price;
+        let mut tmp_base_quantity = base_quantity;
+        let mut tmp_quote_quantity = quote_quantity;
+        let mut orders = Vec::new();
+
+        // 计算方向
+        let action = match direction {
+            EOrderDirection::Long => { EOrderAction::Sell }
+            EOrderDirection::Short => { EOrderAction::Buy }
+        };
+
+        let cut_off_price = match action {
+            EOrderAction::Buy => { price * (Decimal::from(1) - self.cut_off_price_percentage) }
+            EOrderAction::Sell => { price * (Decimal::from(1) + self.cut_off_price_percentage) }
+        };
+
+        {
+            // let position = EOrderPosition::Close;
+            // debug!("MK4::generate_close_orders: position:{:?}\taction:{:?}\ttarget_position_ratio:{:.4?}%\ttmp_price:{:?}\tcut_off_price:{:.4?}"
+            //     ,position
+            //     ,action
+            //     ,target_position_ratio*Decimal::from(100)
+            //     ,tmp_price
+            //     ,cut_off_price
+            // );
+        }
+
+        // 平仓 活区控制
+        // debug!("Mk4:Buy\tsoft_target_position before 活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
+        // debug!("Mk4:Buy\tposition_ratio:{:?}\ttarget_position_ratio:{:.4?}%", position_ratio, target_position_ratio*Decimal::from(100));
+        let target_position_ratio = self.live_zone_control_by_position_ratio(action, target_position_ratio); // 活区
+        // debug!("Mk4:Buy\tsoft_target_position after 活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
+
+        let mut opened_orders_vec: Vec<(Decimal, &SStrategyOrder)> = Vec::new();
+        let opened_orders = match direction {
+            EOrderDirection::Long => { &strategy_order_manager.long_opened_orders }
+            EOrderDirection::Short => { &strategy_order_manager.short_opened_orders }
+        };
+
+        let iter: Box<dyn Iterator<Item=(&Decimal, &Vec<Uuid>)>> = match direction {
+            EOrderDirection::Long => { Box::new(opened_orders.iter()) }
+            EOrderDirection::Short => { Box::new(opened_orders.iter().rev()) }
+        };
+
+        for (price, uuid_vec) in iter {
+            for uuid in uuid_vec {
+                opened_orders_vec.push((price.clone(), strategy_order_manager.peek_by_id(uuid).unwrap()))
+            }
+        }
+
+        // debug
+        // debug!("平仓订单价格:");
+        // let mut count = 0;
+
+        for (expected_close_price, strategy_order) in opened_orders_vec {
+            // count += 1; // debug
+
+            match action {
+                EOrderAction::Buy => {
+                    if tmp_price < cut_off_price {
+                        break;
+                    }
+                }
+                EOrderAction::Sell => {
+                    if tmp_price > cut_off_price {
+                        break;
+                    }
+                }
+            }
+            // let dynamic_target_position = self.get_dynamic_position_with_static_position(price, tmp_base_quantity, tmp_quote_quantity, target_position_ratio);
+            { // debug
+                // debug!("Mk4:\texpected_close_price:{:.2?}\tstrategy_order:{:?}", expected_close_price, strategy_order);
+                // debug!("Mk4:Sell\tcut_off_price:{:.2?}\tdirection:{:?}\tprice:{:.2?}\tbase_quantity:{:?}\tquote_quantity:{:?}",
+                //     cut_off_price,
+                //     direction,
+                //     price,base_quantity,
+                //     quote_quantity
+                // );
+            }
+            match self.get_next_order_with_given_position(
+                direction,
+                action,
+                target_position_ratio,
+                tmp_price,
+                tmp_base_quantity,
+                tmp_quote_quantity,
+                Some(strategy_order),
+            ) {
+                None => {
+                    error!("Mk4:Sell\terror with self.get_next_order_with_static_position");
+                    break;
+                }
+                Some(SNextOrderFormat {
+                         id,
+                         price: order_price,
+                         quantity: order_quantity,
+                         base_quantity: new_base_quantity,
+                         quote_quantity: new_quote_quantity,
+                     }) => {
+                    match action {
+                        EOrderAction::Buy => {
+                            tmp_price = min(expected_close_price, order_price);
+                            if tmp_price < cut_off_price {
+                                break;
+                            }
+                        }
+                        EOrderAction::Sell => {
+                            tmp_price = max(expected_close_price, order_price);
+                            if tmp_price > cut_off_price {
+                                break;
+                            }
+                        }
+                    }
+                    // 新建订单
+                    orders.push(EStrategyAction::NewOrder(SStrategyOrderAdd {
+                        id,
+                        tp_type,
+                        action,
+                        price: tmp_price,
+                        quantity: order_quantity,
+                    }));
+                    // 更新数据
+                    tmp_base_quantity = new_base_quantity;
+                    tmp_quote_quantity = new_quote_quantity;
+
+                    { // debug
+                        // debug!("Mk4-已开仓订单\tNo.{:?}\t方向:{:?}\t开仓价格:{:.2?}\t平仓价格:{:.2?}\t收益率{:.2?}%",
+                        //     count, 
+                        //     direction,
+                        //     strategy_order.get_open_price(),
+                        //     order_price,
+                        //     match direction {
+                        //         EOrderDirection::Long => {
+                        //             order_price - strategy_order.get_open_price()
+                        //         }EOrderDirection::Short => {
+                        //             strategy_order.get_open_price() - order_price
+                        //         }
+                        //     } / strategy_order.get_open_price() * Decimal::from(100)
+                        // );
+                    }
+                }
+            };
+        }
+        (orders, tmp_price, tmp_base_quantity, tmp_quote_quantity)
+    }
+
+    /// 挂单逻辑
+    /// 根据 当前价格+当前资产+预期仓位
+    /// 计算所有挂单(只提供一定范围内的挂单)
+    /// 如果预期仓位>0 则做多 先平空仓 再开多仓
+    /// 如果预期仓位<0 则做空 先平多仓 再开空仓
+    ///
+    /// 返回值为订单集合
+    fn generate_orders(
+        &self,
+        tp_type: ETradingPairType,
+        price: Decimal,
+        base_quantity: Decimal,
+        quote_quantity: Decimal,
+        target_position_ratio: Decimal,
+        strategy_order_manager: &SStrategyOrderManagerV2,
+        debug_config: &SDebugConfig,
+    ) -> Vec<EStrategyAction>
+    {
+        // todo 添加“开仓资金占比”指标
+
+        let mut orders = Vec::new();
+        // 仓位PID控制
+        let soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
+        if debug_config.is_info { debug!("Mk4::generate_orders: soft_target_position:{:.4?}%", soft_target_position*Decimal::from(100)) }
+
+        // 计算多空
+        let direction = if soft_target_position < Decimal::from(0) { EOrderDirection::Short } else { EOrderDirection::Long };
+        // if debug_config.is_info { debug!("Mk4::generate_orders: direction:{:?}", direction) }
+
+
+        // 优先 同向平仓(close direction)
+        //  无法进行同向平仓时 进行逆向开仓(open direction.rev())
+        //  其次 逆向平仓(close direction.rev())
+        //  最后 同向开仓(open direction)
+
+        // 同向平仓(close direction)
+        let (mut close_orders, tmp_price, tmp_base_quantity, tmp_quote_quantity) = self.generate_close_orders(
+            direction,
+            tp_type,
+            price,
+            base_quantity,
+            quote_quantity,
+            soft_target_position,
+            strategy_order_manager,
+            debug_config,
+        );
+        let tp_num = close_orders.len();
+        // { // debug
+        //     debug!("Mk4::generate_orders: 同向平仓(close direction)订单");
+        //     let mut count = 1;
+        //     for order in &close_orders {
+        //         debug!("{:?}\torder:{:?}", count, order);
+        //         count += 1;
+        //     }
+        // }
+        orders.append(&mut close_orders);
+
+        // 逆向开仓(open direction.rev())
+        let (mut close_orders, _, _, _) = self.generate_open_orders(
+            direction.rev(),
+            tp_type,
+            tmp_price,
+            tmp_base_quantity,
+            tmp_quote_quantity,
+            soft_target_position,
+            debug_config,
+        );
+        let nk_num = close_orders.len();
+        // { // debug
+        //     debug!("Mk4::generate_orders: 逆向开仓(open direction.rev())订单");
+        //     let mut count = 1;
+        //     for order in &close_orders {
+        //         debug!("{:?}\torder:{:?}", count, order);
+        //         count += 1;
+        //     }
+        // }
+        orders.append(&mut close_orders);
+
+        // 逆向平仓(close direction.rev())
+        let (mut rev_close_orders, tmp_price, tmp_base_quantity, tmp_quote_quantity) = self.generate_close_orders(
+            direction.rev(),
+            tp_type,
+            price,
+            base_quantity,
+            quote_quantity,
+            soft_target_position,
+            strategy_order_manager,
+            debug_config,
+        );
+        let np_num = rev_close_orders.len();
+        // { // debug
+        //     debug!("Mk4::generate_orders: 逆向平仓(close direction.rev())订单");
+        //     let mut count = 1;
+        //     for order in &close_orders {
+        //         debug!("{:?}\torder:{:?}", count, order);
+        //         count += 1;
+        //     }
+        // }
+        orders.append(&mut rev_close_orders);
+
+        // 同向开仓(open direction)
+        let (mut close_orders, _, _, _) = self.generate_open_orders(
+            direction,
+            tp_type,
+            tmp_price,
+            tmp_base_quantity,
+            tmp_quote_quantity,
+            soft_target_position,
+            debug_config,
+        );
+        let tk_num = close_orders.len();
+        // { // debug
+        //     debug!("Mk4::generate_orders: 同向开仓(open direction)订单");
+        //     let mut count = 1;
+        //     for order in &close_orders {
+        //         debug!("{:?}\torder:{:?}", count, order);
+        //         count += 1;
+        //     }
+        // }
+        orders.append(&mut close_orders);
+
+        if debug_config.is_info { debug!("Mk4:\t同向开仓:{:?}\t同向平仓:{:?}\t逆向开仓:{:?}\t逆向平仓:{:?}\t", tk_num, tp_num, nk_num, np_num) }
+
+        // 返回结果
+        orders
     }
 }
 
@@ -405,213 +951,45 @@ impl<M: TPriceModel> TStrategy for SStrategyMk4<M> {
         let assets_quote = total_assets
             .get(&tp_type.get_quote_currency())
             .unwrap_or(&tmp_quote_asset);
-        // todo 只做多 改为多空策略
-        let direction = EOrderDirection::Long;
-        let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
+        // 多空策略
+        // let direction = EOrderDirection::Long;
         // 从strategy_order_manager中清除无效的索引数据
+        let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         strategy_order_manager.clean_index();
-
-        // todo debug
-        // debug!("Mk4 - strategy_order_manager:");
-        // debug!("strategy_orders: {:?}", strategy_order_manager.strategy_orders);
-        // debug!("order_strategy_order_index: {:?}", strategy_order_manager.order_strategy_order_index);
-        // debug!("long_opened_orders: {:?}", strategy_order_manager.long_opened_orders);
-
         let strategy_order_manager = self.strategy_order_map.get(&tp_type).unwrap();
 
-        // todo 改用长周期趋势模型
+        {
+            // debug
+            // debug!("Mk4 - strategy_order_manager:");
+            // debug!("strategy_orders: {:?}", strategy_order_manager.strategy_orders);
+            // debug!("order_strategy_order_index: {:?}", strategy_order_manager.order_strategy_order_index);
+            // debug!("long_opened_orders: {:?}", strategy_order_manager.long_opened_orders);
+        }
+
+        // 长周期趋势模型
         // let target_position_ratio = self.model.get_price(new_kline.close_time).unwrap();
         let target_position_ratio = self.model.get_position(new_kline.close_time).unwrap();
         self.logger.target_position_ratio = target_position_ratio;
+        // debug!("target_position_ratio: {:.4?}%", target_position_ratio*Decimal::from(100));
 
-        // todo 将计算买单和卖单的逻辑 包装成函数
-        //  输出参数为 挂单信息
-        //  输入参数包含 盘口价格 和 用户资产信息
-        // todo 添加“开仓资金占比”指标
-        // 3.2 循环计算卖单
+        // 计算买单和卖单
         // 价格
-        let mut price = new_kline.close_price;
+        let price = new_kline.close_price;
         // 基础货币量
-        let mut base_quantity = assets_base.balance;
+        let base_quantity = assets_base.balance;
         // 计价货币量
-        let mut quote_quantity = assets_quote.balance;
-        // 实际仓位占比
-        let mut position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
-        // 软仓位占比（PI控制）
-        let mut soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
-        if debug_config.is_debug { debug!("Mk4:Sell\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100)); }
-        // 死区/活区控制
+        let quote_quantity = assets_quote.balance;
+        let mut orders = self.generate_orders(
+            tp_type,
+            price,
+            base_quantity,
+            quote_quantity,
+            target_position_ratio,
+            strategy_order_manager,
+            debug_config,
+        );
+        result.append(&mut orders);
 
-        // soft_target_position = self.dead_zone_control_by_position_ratio(EOrderAction::Sell, soft_target_position); // 死区
-        soft_target_position = self.live_zone_control_by_position_ratio(EOrderAction::Sell, soft_target_position); // 活区
-
-        // debug!("Mk4:Sell\tsoft_target_position after 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
-        // 截止价格
-        let mut cut_off_price = price * (Decimal::from(1) + self.cut_off_price_percentage);
-        // pid积分项累计
-        if let Some(integral) = &mut self.pid_config.integral {
-            integral.add_up(target_position_ratio - position_ratio);
-        }
-
-        if debug_config.is_info {
-            let integral = match &mut self.pid_config.integral {
-                None => { Decimal::from(0) }
-                Some(integral) => {
-                    integral.get_cumulative()
-                }
-            };
-            info!("soft_target_position:\t{:.4?}%\tintegral_cumulative:\t{:?}",
-                soft_target_position*Decimal::from(100), integral
-            );
-        }
-
-        let mut position = EOrderPosition::Close;
-        let mut action = EOrderAction::Sell;
-
-        let mut opened_orders_vec: Vec<(Decimal, &SStrategyOrder)> = Vec::new();
-        let opened_orders = match direction {
-            EOrderDirection::Long => { &strategy_order_manager.long_opened_orders }
-            EOrderDirection::Short => { &strategy_order_manager.short_opened_orders }
-        };
-        for (price, uuid_vec) in opened_orders.iter() {
-            for uuid in uuid_vec {
-                opened_orders_vec.push((price.clone(), strategy_order_manager.peek_by_id(uuid).unwrap()))
-            }
-        }
-
-        // todo debug
-        // debug!("已开仓订单价格:");
-        // let mut count = 0;
-
-        for (min_close_price, strategy_order) in opened_orders_vec {
-            // count += 1; // todo debug
-            // let open_order = strategy_order.get_open_price(); // todo debug
-            if price >= cut_off_price {
-                break;
-            }
-            let dynamic_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, soft_target_position);
-            // todo debug
-            // debug!("Mk4:\tmin_close_price:{:?}\tstrategy_order:{:?}", min_close_price, strategy_order);
-            // debug!("Mk4:Sell\tcut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}",
-            //     cut_off_price,
-            //     direction,
-            //     position,
-            //     price,base_quantity,
-            //     quote_quantity
-            // );
-            match self.get_next_order_with_given_position(
-                direction,
-                position,
-                dynamic_target_position,
-                price,
-                base_quantity,
-                quote_quantity,
-                Some(strategy_order),
-            ) {
-                None => {
-                    error!("Mk4:Sell\terror with self.get_next_order_with_static_position");
-                    break;
-                }
-                Some(SNextOrderFormat {
-                         id,
-                         price: order_price,
-                         quantity: order_quantity,
-                         base_quantity: new_base_quantity,
-                         quote_quantity: new_quote_quantity,
-                     }) => {
-                    price = max(min_close_price, order_price);
-                    if price >= cut_off_price {
-                        break;
-                    }
-                    // 新建订单
-                    result.push(EStrategyAction::NewOrder(SStrategyOrderAdd {
-                        id,
-                        tp_type,
-                        action,
-                        price,
-                        quantity: order_quantity,
-                    }));
-                    // 更新数据
-                    base_quantity = new_base_quantity;
-                    quote_quantity = new_quote_quantity;
-
-                    // todo debug
-                    // debug!("Mk4-已开仓订单\tNo.{:?}\t开仓价格:{:.2?}\t平仓价格:{:.2?}\t收益率{:.2?}%",
-                    //     count, strategy_order.get_open_price(),
-                    //     order_price,
-                    //     (order_price-strategy_order.get_open_price())/strategy_order.get_open_price() * Decimal::from(100)
-                    // );
-                }
-            };
-        }
-
-        // 3.3 循环计算买单
-        // 重置数据
-        price = new_kline.close_price;
-        base_quantity = assets_base.balance;
-        quote_quantity = assets_quote.balance;
-        position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
-        cut_off_price = price * (Decimal::from(1) - self.cut_off_price_percentage);
-        position = EOrderPosition::Open;
-        action = EOrderAction::Buy;
-
-        soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
-        // 死区/活区控制
-        // debug!("Mk4:Buy\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
-        // debug!("Mk4:Buy\tposition_ratio:{:?}\ttarget_position_ratio:{:.4?}%", position_ratio, target_position_ratio*Decimal::from(100));
-        soft_target_position = self.dead_zone_control_by_position_ratio(EOrderAction::Buy, target_position_ratio); // 死区
-        // soft_target_position = self.live_zone_control_by_position_ratio(EOrderAction::Buy, target_position_ratio); // 活区
-        // debug!("Mk4:Buy\tsoft_target_position after 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
-
-        while price > cut_off_price {
-            let dynamic_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, soft_target_position);
-            // info!("Mk4:Buy\tcut_off_price:{:?}\tdirection:{:?}\tposition:{:?}\tsoft_target_position:{:?}\tprice:{:?}\tbase_quantity:{:?}\tquote_quantity:{:?}",
-            //     cut_off_price, 
-            //     direction, 
-            //     position, 
-            //     soft_target_position, 
-            //     price, 
-            //     base_quantity, 
-            //     quote_quantity
-            // );
-            match self.get_next_order_with_given_position(
-                direction,
-                position,
-                dynamic_target_position,
-                price,
-                base_quantity,
-                quote_quantity,
-                None,
-            ) {
-                None => {
-                    error!("Mk4:Buy\terror with self.get_next_order_with_static_position");
-                    break;
-                }
-                Some(SNextOrderFormat {
-                         id: id,
-                         price: order_price,
-                         quantity: order_quantity,
-                         base_quantity: new_base_quantity,
-                         quote_quantity: new_quote_quantity,
-                     }) => {
-                    if order_price < cut_off_price {
-                        break;
-                    }
-                    // 新建订单
-                    result.push(EStrategyAction::NewOrder(SStrategyOrderAdd {
-                        id,
-                        tp_type,
-                        action,
-                        price: order_price,
-                        quantity: order_quantity,
-                    }));
-                    // 更新数据
-                    price = order_price;
-                    base_quantity = new_base_quantity;
-                    quote_quantity = new_quote_quantity;
-                }
-            };
-        }
         //  4. 向runner发送撤单和订单请求
         // info!("result:{:?}", result);
         result
@@ -622,7 +1000,8 @@ impl<M: TPriceModel> TStrategy for SStrategyMk4<M> {
         tp_type: &ETradingPairType,
         parse_action_results: Vec<ERunnerSyncActionResult>,
         debug_config: &SDebugConfig,
-    ) {
+    )
+    {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
         let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         for result in parse_action_results {
@@ -713,5 +1092,9 @@ impl<M: TPriceModel> TStrategy for SStrategyMk4<M> {
 
     fn get_log_info(&self) -> SStrategyLogger {
         self.logger.clone()
+    }
+
+    fn get_position(&self, time: DateTime<Local>) -> Option<Decimal> {
+        self.model.get_position(time)
     }
 }

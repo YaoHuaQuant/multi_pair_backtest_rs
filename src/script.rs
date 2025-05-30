@@ -24,9 +24,12 @@ use crate::{
     },
     strategy::TStrategy,
 };
+use crate::config::back_trade_period::{config_date_from, config_date_to};
 use crate::config::fee::{MAKER_ORDER_FEE, TAKER_ORDER_FEE};
+use crate::config::user::INIT_BALANCE_USDT;
+use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::data_logger::SDataLogger;
-use crate::runner::SRunnerResult;
+use crate::runner::{SRunnerResult, TRunnerGetPrice};
 
 pub struct SScript<R, S>
 where
@@ -62,32 +65,42 @@ where
     pub fn back_trader_single_thread_computing() {
         println!("启动单线程回测");
         let script_start_time = Local::now().format("%Y%m%d_%H%M%S");
-        let user_config = SUserConfig {
-            user_name: USER_NAME.to_string(),
-            init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
-            init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
+
+        // 配置runner
+        let date_from = config_date_from();
+        let date_to = config_date_to() + Duration::minutes(1);
+        let runner_config = SBackTradeRunnerConfig {
+            taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),
+            maker_order_fee: Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
+            date_from,
+            date_to,
         };
-        // let strategy = SStrategyMk1::default();
+        let rt = Runtime::new().unwrap();
+        let data_manager = rt.block_on(SDataManager::build(&runner_config.date_from, &runner_config.date_to));
+        let runner = SBackTradeRunner::new(runner_config, data_manager);
+
+        // 配置 user
         let strategy = S::default();
+        let position = strategy.get_position(date_from).unwrap();
+        let price = runner.get_price(date_from, ETradingPairType::BtcUsdt).unwrap().close_price;
+        let init_asset_total_usdt = Decimal::from_f64(INIT_BALANCE_USDT).unwrap();
+        let init_balance_btc = init_asset_total_usdt * position / price;
+        let init_balance_usdt = init_asset_total_usdt * (Decimal::from(1) - position);
+        let user_config = SUserConfig {
+            user_name: user::USER_NAME.to_string(),
+            init_balance_usdt,
+            init_balance_btc,
+        };
         let users = vec![
             SUser::<S>::new(user_config, strategy)
         ];
 
-        let runner_config = SBackTradeRunnerConfig {
-            taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),
-            maker_order_fee: Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
-            date_from: config_date_from(),
-            date_to: config_date_to(),
-        };
-
-        let rt = Runtime::new().unwrap();
-
-        let data_manager = rt.block_on(SDataManager::build(&runner_config.date_from, &runner_config.date_to));
-        let runner = SBackTradeRunner::new(runner_config, data_manager);
+        let debug_config = SDebugConfig::default();
+        // let debug_config = SDebugConfig { is_debug: true, is_info: true };
         let result = SScript {
             users,
             runner,
-        }.run(SDebugConfig::default());
+        }.run(debug_config);
         result.data_logger.output_user(String::from(format!("data/back_trade/{}.csv", script_start_time)));
     }
 
@@ -103,7 +116,8 @@ where
         // let date_split_step = Duration::days(20);   // 每个分组的间隔时间（20天）
 
         // 自适应日期分区大小
-        let date_split_step = (date_from - date_to) / 100;
+        info!("回测日期：{:?} ~ {:?}", date_from, date_to);
+        let date_split_step = (date_to - date_from) / 100;
         let date_split_step = if date_split_step < Duration::days(1) { Duration::days(1) } else { date_split_step };    // 分区大小不小于1天
         let date_split_step = if date_split_step > Duration::days(20) { Duration::days(20) } else { date_split_step };   // 分区大小不大于20天
         info!("多线程日期分区大小：{:?}", date_split_step);
@@ -145,12 +159,8 @@ where
             let tmp_count = count;
             pool.execute(move || {
                 info!("提交任务：N0.{:?}\tfrom-{:?}\tto-{:?}", tmp_count, date_from.clone(), date_to.clone());
-                // 构造回测执行器配置
-                let user_config = SUserConfig {
-                    user_name: USER_NAME.to_string(),
-                    init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
-                    init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
-                };
+
+                // 配置runner
                 let runner_config = SBackTradeRunnerConfig {
                     taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),
                     maker_order_fee: Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
@@ -160,6 +170,20 @@ where
                 let rt = Runtime::new().unwrap();
                 let data_manager = rt.block_on(SDataManager::build(&runner_config.date_from, &runner_config.date_to));
                 let runner = SBackTradeRunner::new(runner_config, data_manager);
+
+                // 配置 user
+                let strategy = S::default();
+                let position = strategy.get_position(date_from).unwrap();
+                let price = runner.get_price(date_from, ETradingPairType::BtcUsdt).unwrap().close_price;
+                let init_asset_total_usdt = Decimal::from_f64(INIT_BALANCE_USDT).unwrap();
+                let init_balance_btc = init_asset_total_usdt * position / price;
+                let init_balance_usdt = init_asset_total_usdt * (Decimal::from(1) - position);
+                let user_config = SUserConfig {
+                    user_name: user::USER_NAME.to_string(),
+                    init_balance_usdt,
+                    init_balance_btc,
+                };
+
                 // 执行回测
                 let result = SScript {
                     users: vec![
@@ -195,7 +219,7 @@ where
             results.append(&mut result.data_logger);
         }
 
-        // println!("results:{:?}", results);
+        info!("已完成！");
 
         // 将结果存储到文件中
         results.output_user(String::from(format!("data/back_trade/{}.csv", script_start_time)));

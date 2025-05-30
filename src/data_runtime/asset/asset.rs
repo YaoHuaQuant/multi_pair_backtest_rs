@@ -56,6 +56,16 @@ impl SAsset {
             Err(EAssetV2Error::BalanceNotEnough(self.balance, balance))
         }
     }
+
+    /// 拆分出一部分新资产
+    /// 允许被拆分之后的资产为负值
+    pub fn split_allow_negative(&mut self, balance: Decimal) -> RAssetV2Result<Self> {
+        self.balance -= balance;
+        Ok(Self {
+            as_type: self.as_type,
+            balance,
+        })
+    }
 }
 
 

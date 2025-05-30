@@ -1,3 +1,5 @@
+use chrono::{DateTime, Local};
+use rust_decimal::Decimal;
 use crate::config::SDebugConfig;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
@@ -33,5 +35,8 @@ pub trait TStrategy {
     );
     
     fn get_log_info(&self) -> SStrategyLogger;
+
+    /// 获取预期仓位
+    fn get_position(&self, time: DateTime<Local>) -> Option<Decimal>;
 }
 

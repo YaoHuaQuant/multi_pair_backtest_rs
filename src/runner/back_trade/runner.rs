@@ -1,37 +1,33 @@
 use std::collections::HashMap;
-use chrono::{DateTime, Duration, Local};
+use chrono::{DateTime, Local};
 use log::{debug, error, info};
 use rust_decimal::Decimal;
 use uuid::Uuid;
-use crate::{
-    data_runtime::{
-        asset::{
-            asset::SAsset,
-            EAssetType,
-        },
-        order::EOrderAction,
-        order::order::{SOrder},
+use crate::{config, data_runtime::{
+    asset::{
+        asset::SAsset,
+        EAssetType,
     },
-    data_source::{
-        data_manager::SDataManager,
-        db::api::TDataApi,
-        kline::SKlineUnitData,
-        trading_pair::ETradingPairType,
-    },
-    protocol::{ERunnerSyncActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseKlineResult},
-    runner::{
-        back_trade::config::SBackTradeRunnerConfig,
-        TRunner,
-    },
-    strategy::TStrategy,
-};
+    order::EOrderAction,
+    order::order::{SOrder},
+}, data_source::{
+    data_manager::SDataManager,
+    db::api::TDataApi,
+    kline::SKlineUnitData,
+    trading_pair::ETradingPairType,
+}, protocol::{ERunnerSyncActionResult, ERunnerParseOrderResult, EStrategyAction, SRunnerParseKlineResult}, runner::{
+    back_trade::config::SBackTradeRunnerConfig,
+    TRunner,
+}, strategy::TStrategy};
+use crate::config::back_trade_period::SAMPLE_PERIOD;
 use crate::data_runtime::user::SUser;
+use crate::data_source::trading_pair::trading_pair_map::RTradingPairManagerResult;
 use crate::protocol::SStrategyOrderAdd;
 use crate::runner::logger::data_logger::SDataLogger;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
 use crate::runner::logger::transfer_unit::{SDataLogTransferExecutedUnit, SDataLogTransferUnfulfilledUnit, SDataLogTransferUnit};
 use crate::runner::logger::user_unit::SDataLogUserUnit;
-use crate::runner::{SDebugConfig, SRunnerResult};
+use crate::runner::{SDebugConfig, SRunnerResult, TRunnerGetPrice};
 use crate::utils::{assets_denominate_usdt};
 
 pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
@@ -76,6 +72,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             let mut highest_buy_order_map: HashMap<(Uuid, ETradingPairType), Option<Decimal>> = HashMap::new();
             let mut lowest_sell_order_map: HashMap<(Uuid, ETradingPairType), Option<Decimal>> = HashMap::new();
 
+            let mut continue_flag = false;
             // 在单分钟k线内遍历所有交易对
             for (tp_type, trading_pair) in self.data_manager.trading_pair_map.inner.iter() {
                 // 获取k线数据
@@ -83,14 +80,15 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 if let None = option_kline {
                     let err = EBackTradeRunnerError::KlineNotFoundError(tp_type.clone(), current_date.clone());
                     error!("{:?}", err);
+                    continue_flag = true;
                     continue;
                 }
                 let kline_unit_data = option_kline.unwrap().clone();
                 // 查询当前k线对应的资金费率
                 let funding_rate = trading_pair.get_funding_rate(&current_date).unwrap_or(&Decimal::from(0)).clone();
 
-                if debug_config.is_debug {
-                    debug!("K线信息 - 交易对: {:?}\t开盘价:{}\t收盘价:{}\t最高价:{}\t最低价:{}\t资金费率:{}", tp_type, kline_unit_data.open_price, kline_unit_data.close_price, kline_unit_data.high_price, kline_unit_data.low_price, funding_rate);
+                if debug_config.is_info {
+                    info!("K线信息 - 交易对: {:?}\t开盘价:{}\t收盘价:{}\t最高价:{}\t最低价:{}\t资金费率:{:.4?}%", tp_type, kline_unit_data.open_price, kline_unit_data.close_price, kline_unit_data.high_price, kline_unit_data.low_price, funding_rate*Decimal::from(100));
                 }
 
                 // 记录日志
@@ -138,6 +136,10 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                                 user,
                                 &debug_config,
                             );
+                            // info!("parse_action_results:");
+                            // for action in parse_action_results.iter() {
+                            //     info!("action: {:?}", action);
+                            // }
                             // 记录transfer info
                             let transfer_info_unfulfilled = Self::get_sync_strategy_action_transfer_info(&parse_action_results);
                             let transfer_info = SDataLogTransferUnit::from(transfer_info_unfulfilled, transfer_info_executed);
@@ -159,6 +161,11 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 }
             }
 
+            if continue_flag {
+                // 时间递增
+                current_date += SAMPLE_PERIOD;
+                continue;
+            }
             // 记录日志
             self.data_logger.add_kline_data(SDataLogKlineUnit::new(current_date, trading_pair_klines));
             for user in users.iter() {
@@ -168,7 +175,8 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                     buy_order_num += order_manager.buy_orders.len();
                     sell_order_num += order_manager.sell_orders.len();
                 }
-
+                // debug!("transfer_info_map: {:?}", transfer_info_map);
+                // debug!("user.id: {:?}", user.id);
                 let transfer_info = transfer_info_map.get(&user.id).unwrap();
                 let target_position_ratio = Some(Decimal::from(user.strategy.get_log_info().target_position_ratio));
                 let user_data = SDataLogUserUnit::new(current_date, user, target_position_ratio, &self.trading_pair_prices, transfer_info);
@@ -181,8 +189,9 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 self.data_logger.add_user_data(user_data);
             }
 
-            // 时间递增 1 分钟
-            current_date += Duration::minutes(1);
+            // 时间递增
+            current_date += SAMPLE_PERIOD;
+            // current_date += Duration::minutes(1);
 
             // thread::sleep(std::time::Duration::from_secs(2));
         }
@@ -192,6 +201,18 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
             date_from: self.config.date_from,
             date_to: self.config.date_to,
             data_logger: self.data_logger.clone(),
+        }
+    }
+}
+
+impl<D: TDataApi> TRunnerGetPrice for SBackTradeRunner<D> {
+    fn get_price(&self, date: DateTime<Local>, tp_type: ETradingPairType) -> Option<&SKlineUnitData> {
+        match self.data_manager.trading_pair_map.get_kline(tp_type, &date) {
+            Err(e) => {
+                error!("{:?}", e);
+                None
+            }
+            Ok(option_kline) => { option_kline }
         }
     }
 }
@@ -418,18 +439,22 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 }
             };
             // info!("necessary_asset_quantity:{:?}", necessary_asset_quantity);
-            if let Ok(locked_quote_asset) = user_asset.split(necessary_asset_quantity) {
-                // info!("locked_quote_asset:{:?}", locked_quote_asset);
-                if let Err(e) = new_order.submit(locked_quote_asset) {
-                    error!("Error: {:?}", e);
-                }
+            // match user_asset.split(necessary_asset_quantity) {
+            match user_asset.split_allow_negative(necessary_asset_quantity) {
+                Ok(locked_quote_asset) => {
+                    // info!("locked_quote_asset:{:?}", locked_quote_asset);
+                    if let Err(e) = new_order.submit(locked_quote_asset) {
+                        error!("Error: {:?}", e);
+                    }
 
-                if debug_config.is_debug { debug!("新增订单: {:?}", &new_order); }
+                    if debug_config.is_debug { debug!("新增订单: {:?}", &new_order); }
 
-                if let Err(e) = order_manager.insert_order(new_order.clone()) {
-                    error!("Error: {:?}", e);
+                    if let Err(e) = order_manager.insert_order(new_order.clone()) {
+                        error!("Error: {:?}", e);
+                    }
+                    parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order, add_order.id));
                 }
-                parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order, add_order.id));
+                Err(e) => { error!("{:?}", e) }
             }
             // info!("Finish: add_order");
         }

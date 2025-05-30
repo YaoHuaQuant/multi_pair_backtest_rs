@@ -4,6 +4,7 @@
 
 use std::cmp;
 use std::collections::HashSet;
+use chrono::{DateTime, Local};
 use log::error;
 use rust_decimal::{
     Decimal,
@@ -29,7 +30,8 @@ use crate::{
         TStrategy,
     },
 };
-use crate::config::{fee::MAKER_ORDER_FEE, SDebugConfig, TRADDING_PAIR_USDT_MIN_QUANTITY};
+use crate::config::{fee::MAKER_ORDER_FEE, SDebugConfig};
+use crate::config::trading_pair::btc_usdt::TRADDING_PAIR_USDT_MIN_QUANTITY;
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
@@ -573,5 +575,9 @@ impl TStrategy for SStrategyMk2 {
 
     fn get_log_info(&self) -> SStrategyLogger {
         SStrategyLogger::none()
+    }
+
+    fn get_position(&self, _time: DateTime<Local>) -> Option<Decimal> {
+        Some(Decimal::from(0))
     }
 }

@@ -17,12 +17,12 @@ pub struct SPositionModel<P: TPriceModel> {
 }
 
 impl<P: TPriceModel> SPositionModel<P> {
-    pub fn from(price_model: P) -> Self {
+    pub fn from(price_model: P, position_max: f64, position_min: f64) -> Self {
         Self {
             price_model,
             delta_time: Duration::hours(12),
-            position_max: Decimal::from_f64(0.9).unwrap(),
-            position_min: Decimal::from_f64(0.1).unwrap(),
+            position_max: Decimal::from_f64(position_max).unwrap(),
+            position_min: Decimal::from_f64(position_min).unwrap(),
             first_derivative_mean: Decimal::from_f64(30.108271100239573).unwrap(),
             first_derivative_std: Decimal::from_f64(31.619871679773368).unwrap(),
             second_derivative_mean: Decimal::from_f64(-0.03086514940302392).unwrap(),
@@ -127,7 +127,7 @@ mod tests {
     pub fn test1() -> Result<(), Box<dyn std::error::Error>> {
         // 准备模型
         let price_model = SPriceModelLongTermTrend::default();
-        let position_model = SPositionModel::from(price_model);
+        let position_model = SPositionModel::from(price_model, 0.9, 0.1);
 
         // 准备数据
         let date_from = Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2018, 1, 1).unwrap(), NaiveTime::from_hms_opt(00, 0, 0).unwrap())).single().unwrap();

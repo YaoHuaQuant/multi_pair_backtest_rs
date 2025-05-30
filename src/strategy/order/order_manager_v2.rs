@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Bound::Excluded;
 
@@ -169,20 +169,38 @@ impl SStrategyOrderManagerV2 {
     /// 将订单写入opened_orders
     /// 返回订单的最低close价格
     fn push_into_opened_orders(&mut self, strategy_order_id: &Uuid) -> RStrategyOrderManagerV2Result<Decimal> {
-        let mut strategy_order = self.peek_by_id(strategy_order_id)?.clone();
-        let mut opened_orders = match strategy_order.get_direction() {
+        let strategy_order = self.peek_by_id(strategy_order_id)?.clone();
+        let opened_orders = match strategy_order.get_direction() {
             EOrderDirection::Long => { &mut self.long_opened_orders }
             EOrderDirection::Short => { &mut self.short_opened_orders }
         };
+        let direction = strategy_order.get_direction();
         // 计算订单的最低close价格
-        // 最低平仓价
-        let mut price = strategy_order.get_open_price() * (Decimal::from(1) + self.min_profit_percentage);
+        // (最低平仓价, 最高平仓价)
+        let (mut price, price_max) = match direction {
+            EOrderDirection::Long => {
+                (
+                    strategy_order.get_open_price() * (Decimal::from(1) + self.min_profit_percentage),
+                    strategy_order.get_open_price() * (Decimal::from(1) + self.max_profit_percentage)
+                )
+            }
+            EOrderDirection::Short => {
+                (
+                    strategy_order.get_open_price() * (Decimal::from(1) - self.min_profit_percentage),
+                    strategy_order.get_open_price() * (Decimal::from(1) - self.max_profit_percentage)
+                )
+            }
+        };
+        // let mut price = strategy_order.get_open_price() * (Decimal::from(1) + self.min_profit_percentage);
         // 最高平仓价
-        let price_max = strategy_order.get_open_price() * (Decimal::from(1) + self.max_profit_percentage);
+        // let price_max = strategy_order.get_open_price() * (Decimal::from(1) + self.max_profit_percentage);
         // 价格差异
         let price_step = strategy_order.get_open_price() * self.close_price_step_percentage;
         // 遍历寻找合适的close price
-        while price < price_max {
+        while match direction {
+            EOrderDirection::Long => {price < price_max}
+            EOrderDirection::Short => {price > price_max}
+        } {
             let price_low = price - price_step;
             let price_high = price + price_step;
             // 当[price_low,price_high]之间不存在元素时 结束遍历
@@ -191,8 +209,17 @@ impl SStrategyOrderManagerV2 {
                 break;
             } else {
                 // 当下一个价格大于等于price_max时 强制置为price_max 自动结束遍历
-                price += price_step;
-                price = min(price_max, price);
+                match direction {
+                    EOrderDirection::Long => {
+                        price += price_step;
+                        price = min(price_max, price);
+                    }
+                    EOrderDirection::Short => {
+                        price -= price_step;
+                        price = max(price_max, price);
+                    }
+                }
+                
             }
         }
         // let price_level = opened_orders.entry(strategy_order.get_open_price()).or_insert_with(Vec::new);
@@ -311,7 +338,6 @@ impl SStrategyOrderManagerV2 {
 
     /// 平单结算
     /// 返回 strategy order 并在外部析构
-    /// todo debug
     pub fn closed_by_order_id(&mut self, order_id: &Uuid) -> RStrategyOrderManagerV2Result<RStrategyOrderResult<SStrategyOrder>> {
         match self.pop_by_order_id(order_id) {
             None => {Err(EStrategyOrderManagerV2Error::OrderIdNotFound(order_id.clone()))}

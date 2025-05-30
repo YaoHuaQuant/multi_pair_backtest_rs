@@ -22,3 +22,13 @@ pub enum EOrderPosition {
     Open,
     Close
 }
+
+impl EOrderDirection {
+    /// 获取相反的方向
+    pub fn rev(&self) -> Self {
+        match self {
+            EOrderDirection::Long => {EOrderDirection::Short}
+            EOrderDirection::Short => {EOrderDirection::Long}
+        }
+    }
+}

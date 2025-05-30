@@ -9,7 +9,6 @@ use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
 
 use crate::{
-    config::{INIT_BALANCE_BTC, INIT_BALANCE_USDT},
     data_runtime::{
         asset::{
             asset::SAsset,
@@ -23,6 +22,7 @@ use crate::{
     strategy::TStrategy,
 };
 use crate::config::SDebugConfig;
+use crate::config::user::INIT_BALANCE_USDT;
 use crate::data_runtime::asset::asset_map::RAssetMapResult;
 
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ impl Default for SUserConfig {
         Self {
             user_name: "Satoshi Nakamoto".to_string(),
             init_balance_usdt: Decimal::from_f64(INIT_BALANCE_USDT).unwrap(),
-            init_balance_btc: Decimal::from_f64(INIT_BALANCE_BTC).unwrap(),
+            init_balance_btc: Decimal::from_f64(0.0).unwrap(),
         }
     }
 }

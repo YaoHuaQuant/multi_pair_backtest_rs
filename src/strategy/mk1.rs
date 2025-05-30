@@ -39,10 +39,11 @@
 //!
 
 use std::collections::HashSet;
+use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
-use crate::config::{SDebugConfig, TRADDING_PAIR_BTC_USDT_MIN_QUANTITY};
+use crate::config::{SDebugConfig, trading_pair::btc_usdt::TRADDING_PAIR_BTC_USDT_MIN_QUANTITY};
 use crate::data_runtime::asset::asset::SAsset;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::order::EOrderAction;
@@ -251,5 +252,9 @@ impl TStrategy for SStrategyMk1 {
 
     fn get_log_info(&self) -> SStrategyLogger {
         SStrategyLogger::none()
+    }
+
+    fn get_position(&self, _time: DateTime<Local>) -> Option<Decimal> {
+        Some(Decimal::from(0))
     }
 }

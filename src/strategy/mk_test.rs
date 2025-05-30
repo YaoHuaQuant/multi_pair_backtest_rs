@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::str::FromStr;
+use chrono::{DateTime, Local};
 use log::info;
 use rust_decimal::Decimal;
 use uuid::Uuid;
@@ -91,5 +92,9 @@ impl TStrategy for SStrategyMkTest {
 
     fn get_log_info(&self) -> SStrategyLogger {
         SStrategyLogger::none()
+    }
+
+    fn get_position(&self, _time: DateTime<Local>) -> Option<Decimal> {
+        Some(Decimal::from(0))
     }
 }

@@ -6,7 +6,7 @@
 
 use std::cmp::{max, min};
 use std::collections::HashSet;
-use chrono::{Local, TimeZone};
+use chrono::{DateTime, Local, TimeZone};
 use log::{debug, error, info};
 use rust_decimal::{
     Decimal,
@@ -31,7 +31,9 @@ use crate::{
         TStrategy,
     },
 };
-use crate::config::{INIT_BALANCE_USDT, fee::MAKER_ORDER_FEE, SDebugConfig, TRADDING_PAIR_USDT_MIN_QUANTITY};
+use crate::config::{fee::MAKER_ORDER_FEE, SDebugConfig};
+use crate::config::trading_pair::btc_usdt::TRADDING_PAIR_USDT_MIN_QUANTITY;
+use crate::config::user::INIT_BALANCE_USDT;
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
@@ -820,5 +822,9 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
 
     fn get_log_info(&self) -> SStrategyLogger {
         self.logger.clone()
+    }
+
+    fn get_position(&self, _time: DateTime<Local>) -> Option<Decimal> {
+        Some(Decimal::from(0))
     }
 }
