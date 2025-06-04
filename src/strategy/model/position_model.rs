@@ -40,7 +40,8 @@ impl<P: TPriceModel> SPositionModel<P> {
             Some(price_plus) => {
                 match self.price_model.get_price(date_minus) {
                     None => { None }
-                    Some(price_minus) => { Some(price_plus - price_minus) }
+                    // Some(price_minus) => { Some(price_plus - price_minus) }
+                    Some(price_minus) => { Some((price_plus - price_minus) / Decimal::from_f64(2.0 * delta.num_minutes().to_f64().unwrap()).unwrap() * Decimal::from(24 * 60)) }
                 }
             }
         }
@@ -66,7 +67,7 @@ impl<P: TPriceModel> SPositionModel<P> {
             Some(price_plus) => {
                 match self.get_first_derivative(date_minus) {
                     None => { None }
-                    Some(price_minus) => { Some((price_plus - price_minus) / Decimal::from_f64(2.0 * delta.num_minutes().to_f64().unwrap()).unwrap()) }
+                    Some(price_minus) => { Some((price_plus - price_minus) / Decimal::from_f64(2.0 * delta.num_minutes().to_f64().unwrap()).unwrap() * Decimal::from(24 * 60)) }
                 }
             }
         }
@@ -118,20 +119,37 @@ impl<P: TPriceModel> SPositionModel<P> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
+    use std::fs::File;
+    use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
     use rust_decimal::Decimal;
+    use serde::Serialize;
     use crate::strategy::model::position_model::SPositionModel;
     use crate::strategy::model::price_model_long_term_trend::SPriceModelLongTermTrend;
-
+    #[derive(Debug, Serialize)]
+    struct STestOutputFormat {
+        pub time: DateTime<Local>,
+        pub price: Decimal,
+        pub position: Decimal,
+        pub first_standard: Decimal,
+        pub first_standard_std: Decimal,
+        pub second_standard: Decimal,
+        pub second_standard_std: Decimal,
+    }
     #[test]
     pub fn test1() -> Result<(), Box<dyn std::error::Error>> {
+        // 准备文件
+        let path = String::from("data/test/position_test.csv");
+        // dbg!(&path);
+        let file = File::create(path.clone()).unwrap();
+        let mut wtr = csv::Writer::from_writer(file);
+
         // 准备模型
         let price_model = SPriceModelLongTermTrend::default();
         let position_model = SPositionModel::from(price_model, 0.9, 0.1);
 
         // 准备数据
         let date_from = Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2018, 1, 1).unwrap(), NaiveTime::from_hms_opt(00, 0, 0).unwrap())).single().unwrap();
-        let date_to = Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(), NaiveTime::from_hms_opt(00, 0, 0).unwrap())).single().unwrap();
+        let date_to = Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(), NaiveTime::from_hms_opt(00, 0, 0).unwrap())).single().unwrap();
         let mut date_now = date_from;
         let mut count = 1;
         while date_now < date_to {
@@ -145,12 +163,27 @@ mod tests {
             // println!("count: {:?}\tdate: {:?}\tprice: {:.2?}\tposition:{:.4?}%\tfirst:{:?}\tsecond:{:?}\tfirst_std:{:?}\tsecond_std:{:?}",
             //          count, date_now, price, position * Decimal::from(100), first_standard, second_standard, first_standard_std, second_standard_std);
 
-            println!("count: {:?}\tdate: {:?}\tprice: {:.2?}\tposition:{:.4?}%\tfirst_std:{:.4?}\tsecond_std:{:.4?}",
-                     count, date_now, price, position * Decimal::from(100), first_standard_std, second_standard_std);
+            // println!("count: {:?}\tdate: {:?}\tprice: {:.2?}\tposition:{:.4?}%\tfirst_std:{:.4?}\tsecond_std:{:.4?}",
+            //          count, date_now, price, position * Decimal::from(100), first_standard_std, second_standard_std);
+
+            let merged_output = STestOutputFormat {
+                time: date_now,
+                price,
+                position,
+                first_standard,
+                first_standard_std,
+                second_standard,
+                second_standard_std,
+            };
+            wtr.serialize(merged_output).unwrap();
 
             date_now += Duration::days(1);
             count += 1;
         }
+
+        // 输出到csv文件
+        wtr.flush().unwrap();
+        println!("仓位测试数据写入完成：{}", path);
 
         Ok(())
     }
