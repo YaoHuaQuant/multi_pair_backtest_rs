@@ -7,6 +7,7 @@ use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
 use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::order_v3::{EOrderState, SAddOrder, SOrderV3};
+use crate::data_source::trading_pair::ETradingPairType;
 
 pub type ROrderManagerV3Result<T> = Result<T, EOrderManagerV3Error>;
 
@@ -26,8 +27,11 @@ pub enum EOrderManagerV3Error {
 }
 
 /// 订单管理器
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SOrderManagerV3 {
+    /// 交易对类型
+    pub tp_type: ETradingPairType,
+    
     /// 订单池
     pub orders: HashMap<Uuid, SOrderV3>,
 
@@ -42,8 +46,9 @@ pub struct SOrderManagerV3 {
 }
 
 impl SOrderManagerV3 {
-    pub fn new() -> Self {
+    pub fn new(tp_type: ETradingPairType) -> Self {
         Self {
+            tp_type,
             orders: Default::default(),
             buy_orders: Default::default(),
             sell_orders: Default::default(),
@@ -77,7 +82,7 @@ impl SOrderManagerV3 {
         let action = add_order.action;
         let price = add_order.price;
         let quantity = add_order.quantity;
-        let order = SOrderV3::new(price, quantity, action);
+        let order = SOrderV3::new(self.tp_type, price, quantity, action);
         let id = order.get_id();
         self.insert_order(order)?;
         Ok(id)
@@ -234,9 +239,10 @@ mod tests {
     use crate::data_runtime::order::EOrderAction;
     use crate::data_runtime::order::order_v3::{SAddOrder, SOrderV3};
     use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
+    use crate::data_source::trading_pair::ETradingPairType;
 
     fn get_test_data(action: EOrderAction) -> (SOrderManagerV3, Vec<Uuid>) {
-        let mut manager = SOrderManagerV3::new();
+        let mut manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
         let price_vec = vec![
             Decimal::from_str("100").unwrap(),
@@ -334,7 +340,7 @@ mod tests {
 
     #[test]
     pub fn test_calculate_total_assets() {
-        let mut manager = SOrderManagerV3::new();
+        let mut manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
         let price_vec_buy = vec![
             Decimal::from_str("1").unwrap(),
@@ -355,7 +361,6 @@ mod tests {
                 as_type: EAssetType::Usdt,
                 balance: Decimal::from(price),
             };
-            let asset = EAssetUnion::Usdt(asset);
             let _r = order.submit(asset);
         }
 
@@ -378,7 +383,6 @@ mod tests {
                 as_type: EAssetType::Btc,
                 balance: Decimal::from(price),
             };
-            let asset = EAssetUnion::Btc(asset);
             let _r = order.submit(asset);
         }
 
@@ -405,7 +409,7 @@ mod tests {
 
     #[test]
     pub fn test_buy_pop() {
-        let mut manager = SOrderManagerV3::new();
+        let mut manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
         let price_vec_buy = vec![
             Decimal::from_str("1").unwrap(),
@@ -426,7 +430,6 @@ mod tests {
                 as_type: EAssetType::Usdt,
                 balance: Decimal::from(price),
             };
-            let asset = EAssetUnion::Usdt(asset);
             let _r = order.submit(asset);
         }
         dbg!(&manager);
@@ -445,7 +448,7 @@ mod tests {
 
     #[test]
     pub fn test_sell_pop() {
-        let mut manager = SOrderManagerV3::new();
+        let mut manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
         let price_vec_sell = vec![
             Decimal::from_str("5").unwrap(),
@@ -466,7 +469,6 @@ mod tests {
                 as_type: EAssetType::Btc,
                 balance: Decimal::from(price),
             };
-            let asset = EAssetUnion::Btc(asset);
             let _r = order.submit(asset);
         }
         dbg!(&manager);
@@ -485,7 +487,7 @@ mod tests {
 
     #[test]
     pub fn test_buy_sell_pop() {
-        let mut manager = SOrderManagerV3::new();
+        let mut manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
 
         let price_vec_buy = vec![
@@ -507,7 +509,6 @@ mod tests {
                 as_type: EAssetType::Usdt,
                 balance: Decimal::from(price),
             };
-            let asset = EAssetUnion::Usdt(asset);
             let _r = order.submit(asset);
         }
 
@@ -530,7 +531,6 @@ mod tests {
                 as_type: EAssetType::Btc,
                 balance: Decimal::from(price),
             };
-            let asset = EAssetUnion::Btc(asset);
             let _r = order.submit(asset);
         }
         dbg!(&manager);

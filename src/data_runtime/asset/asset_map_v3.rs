@@ -70,12 +70,12 @@ impl SAssetMapV3 {
     /// 插入一个EAsset
     pub fn merge_asset(&mut self, other: EAssetUnion) {
         let as_type = other.get_asset_type();
-        // 如果当前type不存在 则新增
         match self.get_mut(as_type) {
             Ok(asset) => {
                 asset.merge(other).unwrap();
             }
             Err(e) => {
+                // 如果当前type不存在 则新增
                 if let EAssetMapV3Error::AssetNotFoundError(as_type) = e {
                     self.inner.insert(as_type, other);
                 }

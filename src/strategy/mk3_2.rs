@@ -24,7 +24,7 @@ use crate::{
         },
     },
     data_source::trading_pair::ETradingPairType,
-    protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd},
+    protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult},
     strategy::{
         TStrategy,
     },
@@ -36,6 +36,7 @@ use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
 use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
 use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
+use crate::protocol::strategy_order::SStrategyOrderAdd;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
 use crate::strategy::model::price_model_sin_test::SPriceModelSin;
@@ -639,7 +640,8 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
                         tp_type,
                         action,
                         price,
-                        quantity: order_quantity,
+                        base_quantity: order_quantity,
+                        margin_quantity: order_quantity * price,
                     }));
                     // 更新数据
                     base_quantity = new_base_quantity;
@@ -713,7 +715,8 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
                         tp_type,
                         action,
                         price: order_price,
-                        quantity: order_quantity,
+                        base_quantity: order_quantity,
+                        margin_quantity: order_quantity * order_price,
                     }));
                     // 更新数据
                     price = order_price;

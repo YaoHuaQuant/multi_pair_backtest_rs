@@ -26,6 +26,7 @@ use crate::data_runtime::asset::asset::SAsset;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::asset::asset_map_v3::RAssetMapV3Result;
 use crate::data_runtime::asset::asset_union::EAssetUnion;
+use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
 
 #[derive(Debug, Clone)]
 pub struct SUserConfig {
@@ -73,9 +74,9 @@ impl<S: TStrategy> SUser<S> {
             EAssetUnion::from(SAsset{ as_type: EAssetType::Btc, balance: config.init_balance_btc })
         );
         let mut tp_order_map = STradingPairOrderManagerMapV3 { inner: Default::default() };
-        tp_order_map.inner.insert(ETradingPairType::BtcUsdt, Default::default());
-        tp_order_map.inner.insert(ETradingPairType::BtcUsdCmFuture, Default::default());
-        tp_order_map.inner.insert(ETradingPairType::BtcUsdtFuture, Default::default());
+        tp_order_map.inner.insert(ETradingPairType::BtcUsdt, SOrderManagerV3::new(ETradingPairType::BtcUsdt));
+        tp_order_map.inner.insert(ETradingPairType::BtcUsdCmFuture, SOrderManagerV3::new(ETradingPairType::BtcUsdCmFuture));
+        tp_order_map.inner.insert(ETradingPairType::BtcUsdtFuture, SOrderManagerV3::new(ETradingPairType::BtcUsdtFuture));
         Self {
             config:config.clone(),
             id: Uuid::new_v4(),
@@ -142,7 +143,6 @@ mod tests {
     use rust_decimal::Decimal;
 
     use crate::data_runtime::asset::asset::SAsset;
-    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::order::EOrderAction;
     use crate::data_runtime::order::order_v3::SAddOrder;
@@ -160,7 +160,7 @@ mod tests {
         };
         let mut user = SUser::new(user_config, SStrategyMkTest::default());
         let mut tp_order_map = STradingPairOrderManagerMapV3::default();
-        let mut order_manager = SOrderManagerV3::new();
+        let mut order_manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
         let price_vec1 = vec![
             Decimal::from_str("100").unwrap(),
@@ -180,7 +180,6 @@ mod tests {
         }
         for (_uuid, order) in order_manager.orders.iter_mut() {
             let asset = SAsset { as_type: EAssetType::Usdt, balance: order.get_amount() };
-            let asset = EAssetUnion::Usdt(asset);
             let _r = order.submit(asset);
         }
 
@@ -202,7 +201,6 @@ mod tests {
         }
         for (_uuid, order) in order_manager.orders.iter_mut() {
             let asset = SAsset { as_type: EAssetType::Btc, balance: order.get_quantity() };
-            let asset = EAssetUnion::Btc(asset);
             let _r = order.submit(asset);
         }
 

@@ -469,6 +469,7 @@ mod tests {
     use crate::data_runtime::order::{EOrderAction, EOrderDirection};
     use crate::data_runtime::order::order_v3::SAddOrder;
     use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
+    use crate::data_source::trading_pair::ETradingPairType;
     use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
     use crate::strategy::order::order_manager_v2::SStrategyOrderManagerV2;
 
@@ -481,7 +482,7 @@ mod tests {
             max_profit_percentage,
             close_price_step_percentage,
         );
-        let mut manager = SOrderManagerV3::new();
+        let mut manager = SOrderManagerV3::new(ETradingPairType::BtcUsdt);
 
         let price_vec = vec![
             (Decimal::from_str("400").unwrap(), Decimal::from_f64(0.4).unwrap()),
@@ -521,7 +522,7 @@ mod tests {
 
         for id in id_vec.iter() {
             let order = manager.orders.get_mut(&id).unwrap();
-            let _ = order.submit(EAssetUnion::from(SAsset { as_type: EAssetType::Usdt, balance: order.get_price() * order.get_quantity() }));
+            let _ = order.submit(SAsset { as_type: EAssetType::Usdt, balance: order.get_price() * order.get_quantity() });
             let _ = strategy_manager.opened_by_order_id(&id);
         }
         (id_vec, manager, strategy_manager)

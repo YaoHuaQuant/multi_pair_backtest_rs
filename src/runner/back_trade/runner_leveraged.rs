@@ -1,3 +1,4 @@
+//! 在SBackTradeRunner的基础上 支持杠杆资产
 use std::collections::HashMap;
 use chrono::{DateTime, Local};
 use log::{debug, error, info};
@@ -30,10 +31,10 @@ use crate::runner::logger::user_unit::SDataLogUserUnit;
 use crate::runner::{SDebugConfig, SRunnerResult, TRunnerGetPrice};
 use crate::utils::{assets_denominate_usdt};
 
-pub type RBackTradeRunnerResult<T> = Result<T, EBackTradeRunnerError>;
+pub type RLeveragedBackTradeRunnerResult<T> = Result<T, ELeveragedBackTradeRunnerError>;
 
 #[derive(Debug)]
-pub enum EBackTradeRunnerError {
+pub enum ELeveragedBackTradeRunnerError {
     KlineNotFoundError(ETradingPairType, DateTime<Local>),
     OrderActionError(EOrderAction),
     AssetLockedNotEnoughError(EAssetType),
@@ -43,7 +44,7 @@ pub enum EBackTradeRunnerError {
 
 /// 回测执行器
 #[derive(Debug)]
-pub struct SBackTradeRunner<D: TDataApi> {
+pub struct SLeveragedBackTradeRunner<D: TDataApi> {
     /// 配置
     pub config: SBackTradeRunnerConfig,
     /// 数据管理器
@@ -54,7 +55,7 @@ pub struct SBackTradeRunner<D: TDataApi> {
     pub data_logger: SDataLogger,
 }
 
-impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
+impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
     fn run(&mut self, users: &mut Vec<SUser<S>>, debug_config: SDebugConfig) -> SRunnerResult {
         // 循环遍历k线 根据时间间隔1分钟
         let mut current_date = self.config.date_from;
@@ -79,7 +80,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 // 获取k线数据
                 let option_kline = trading_pair.get_kline(&current_date);
                 if let None = option_kline {
-                    let err = EBackTradeRunnerError::KlineNotFoundError(tp_type.clone(), current_date.clone());
+                    let err = ELeveragedBackTradeRunnerError::KlineNotFoundError(tp_type.clone(), current_date.clone());
                     error!("{:?}", err);
                     continue_flag = true;
                     continue;
@@ -184,6 +185,8 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
                 let position_ratio = (user_data.total_assets_usdt - user_data.total_usdt) / user_data.total_assets_usdt * Decimal::from(100);
 
                 if debug_config.is_info {
+                    dbg!(&user.tp_order_map);
+                    dbg!(&user.available_assets);
                     info!("用户信息:{:?}\t仓位:{:.2?}%\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}\t买单数量:{:?}\t卖单数量:{:?}",
                     user_data.user_name, position_ratio, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt, buy_order_num, sell_order_num);
                 }
@@ -206,7 +209,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SBackTradeRunner<D> {
     }
 }
 
-impl<D: TDataApi> TRunnerGetPrice for SBackTradeRunner<D> {
+impl<D: TDataApi> TRunnerGetPrice for SLeveragedBackTradeRunner<D> {
     fn get_price(&self, date: DateTime<Local>, tp_type: ETradingPairType) -> Option<&SKlineUnitData> {
         match self.data_manager.trading_pair_map.get_kline(tp_type, &date) {
             Err(e) => {
@@ -218,7 +221,7 @@ impl<D: TDataApi> TRunnerGetPrice for SBackTradeRunner<D> {
     }
 }
 
-impl<D: TDataApi> SBackTradeRunner<D> {
+impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
     pub fn new(config: SBackTradeRunnerConfig, data_manager: SDataManager<D>) -> Self {
         Self {
             config,
@@ -237,7 +240,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         funding_rate: Decimal,
         user: &mut SUser<S>,
         debug_config: &SDebugConfig,
-    ) -> (RBackTradeRunnerResult<SRunnerParseKlineResult>, Option<Decimal>, Option<Decimal>)
+    ) -> (RLeveragedBackTradeRunnerResult<SRunnerParseKlineResult>, Option<Decimal>, Option<Decimal>)
     {
         // 根据K线 结算订单数据 结算资产数据
         let mut order_results: Vec<ERunnerParseOrderResult> = Vec::new(); // 订单已成交列表
@@ -263,7 +266,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             if order.get_action() != EOrderAction::Buy {
                 log::error!("EOrderAction Error: Expected Buy - Actually {:?}", order.get_action());
             }
-            // 挂单价格大于等于当前k线最低价格，则买单成交。
+            // 挂单价格必须大于等于当前k线最低价格，则买单成交。否则不进行计算
             if order.get_price() < kline_unit_data.low_price {
                 break;
             }
@@ -430,18 +433,21 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         for add_order in add_orders {
             // info!("Start: add_order");
             // info!("add_order:{:?}", add_order);
-            let mut new_order = SOrderV3::new(
-                tp_type.clone(), 
-                add_order.price, 
-                add_order.base_quantity, 
-                add_order.action
-            );
-            let user_asset = match add_order.action {
+            let SStrategyOrderAdd { 
+                id:_, 
+                tp_type, 
+                action, 
+                price, 
+                base_quantity, 
+                margin_quantity
+            } = add_order;
+            let mut new_order = SOrderV3::new(tp_type, price, base_quantity, action);
+            let user_asset = match action {
                 EOrderAction::Buy => {user_asset_manager.get_mut(quote_asset_type).unwrap()}
                 EOrderAction::Sell => {user_asset_manager.get_mut(base_asset_type).unwrap()}
             };
             // info!("margin_quantity:{:?}", add_order.margin_quantity);
-            let locked_margin_asset = user_asset.split_allow_negative(add_order.margin_quantity);
+            let locked_margin_asset = user_asset.split_allow_negative(margin_quantity);
             // info!("locked_margin_asset:{:?}", locked_margin_asset);
             match locked_margin_asset {
                 EAssetUnion::Usdt(asset) | EAssetUnion::Btc(asset) => {
@@ -458,7 +464,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                     // info!("Finish: add_order");
                 }
                 EAssetUnion::BtcUsdtFuture(_) | EAssetUnion::BtcUsdCmFuture(_) => {
-                    error!("{:?}", EBackTradeRunnerError::MarginMustBeBtcOrUsdtError(locked_margin_asset))
+                    error!("{:?}", ELeveragedBackTradeRunnerError::MarginMustBeBtcOrUsdtError(locked_margin_asset))
                     // info!("Fail: add_order");
                 }
             }

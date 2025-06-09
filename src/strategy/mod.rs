@@ -17,6 +17,7 @@ pub mod logger;
 pub mod mk3_2;
 pub mod mk4;
 pub mod mk5;
+pub mod mk_test_leveraged;
 
 /// 策略接口
 pub trait TStrategy {

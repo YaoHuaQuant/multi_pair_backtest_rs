@@ -30,6 +30,7 @@ use crate::config::user::INIT_BALANCE_USDT;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::data_logger::SDataLogger;
 use crate::runner::{SRunnerResult, TRunnerGetPrice};
+use crate::runner::back_trade::runner_leveraged::SLeveragedBackTradeRunner;
 
 pub struct SScript<R, S>
 where
@@ -223,5 +224,53 @@ where
 
         // 将结果存储到文件中
         results.output_user(String::from(format!("data/back_trade/{}.csv", script_start_time)));
+    }
+}
+impl<S> SScript<SLeveragedBackTradeRunner<SDataApiDb>, S>
+where
+    S: TStrategy + Default,
+{
+    /// 回测 单线程计算
+    pub fn back_trader_single_thread_computing() {
+        println!("启动单线程回测");
+        let script_start_time = Local::now().format("%Y%m%d_%H%M%S");
+
+        // 配置runner
+        let date_from = config_date_from();
+        let date_to = config_date_to() + Duration::minutes(1);
+        let runner_config = SBackTradeRunnerConfig {
+            taker_order_fee: Decimal::from_f64(TAKER_ORDER_FEE).unwrap(),
+            maker_order_fee: Decimal::from_f64(MAKER_ORDER_FEE).unwrap(),
+            date_from,
+            date_to,
+        };
+        let rt = Runtime::new().unwrap();
+        let data_manager = rt.block_on(SDataManager::build(&runner_config.date_from, &runner_config.date_to));
+        let runner = SLeveragedBackTradeRunner::new(runner_config, data_manager);
+
+        // 配置 user
+        let strategy = S::default();
+        // let position = strategy.get_position(date_from).unwrap();
+        let position = Decimal::from_f64(0.5).unwrap();
+        let price = runner.get_price(date_from, ETradingPairType::BtcUsdt).unwrap().close_price;
+        let init_asset_total_usdt = Decimal::from_f64(INIT_BALANCE_USDT).unwrap();
+        let init_balance_btc = init_asset_total_usdt * position / price;
+        let init_balance_usdt = init_asset_total_usdt * (Decimal::from(1) - position);
+        let user_config = SUserConfig {
+            user_name: user::USER_NAME.to_string(),
+            init_balance_usdt,
+            init_balance_btc,
+        };
+        let users = vec![
+            SUser::<S>::new(user_config, strategy)
+        ];
+
+        let debug_config = SDebugConfig::default();
+        // let debug_config = SDebugConfig { is_debug: true, is_info: true };
+        let result = SScript {
+            users,
+            runner,
+        }.run(debug_config);
+        result.data_logger.output_user(String::from(format!("data/back_trade/{}.csv", script_start_time)));
     }
 }

@@ -189,14 +189,16 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal::prelude::FromPrimitive;
     use crate::data_runtime::order::EOrderDirection;
-    use crate::data_runtime::order::order::SOrder;
     use crate::data_runtime::order::order_v3::SOrderV3;
+    use crate::data_source::trading_pair::ETradingPairType;
     use crate::strategy::order::order::{EStrategyOrderError, EStrategyOrderState, SStrategyOrder};
 
     pub fn get_test_data_open_order() -> SOrderV3 {
         let price = Decimal::from(100_000);
         let quantity = Decimal::from_f64(0.5).unwrap();
+        let tp_type = ETradingPairType::BtcUsdt;
         SOrderV3::new_buy_order(
+            tp_type,
             price,
             quantity,
         )
@@ -205,7 +207,9 @@ mod tests {
     pub fn get_test_data_close_order1() -> SOrderV3 {
         let price = Decimal::from(110_000);
         let quantity = Decimal::from_f64(0.5).unwrap();
+        let tp_type = ETradingPairType::BtcUsdt;
         SOrderV3::new_sell_order(
+            tp_type,
             price,
             quantity,
         )
@@ -214,7 +218,9 @@ mod tests {
     pub fn get_test_data_close_order2() -> SOrderV3 {
         let price = Decimal::from(110_000);
         let quantity = Decimal::from_f64(0.51).unwrap();
+        let tp_type = ETradingPairType::BtcUsdt;
         SOrderV3::new_sell_order(
+            tp_type,
             price,
             quantity,
         )

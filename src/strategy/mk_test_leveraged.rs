@@ -14,25 +14,25 @@ use crate::protocol::strategy_order::SStrategyOrderAdd;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::TStrategy;
 
-/// 测试用策略
+/// 测试用策略-杠杆资产专用
 #[derive(Debug)]
-pub struct SStrategyMkTest {
+pub struct SStrategyMkTestLeveraged {
     pub remove_list: VecDeque<Uuid>,
 }
 
-impl Default for SStrategyMkTest {
+impl Default for SStrategyMkTestLeveraged {
     fn default() -> Self {
         Self { remove_list: Default::default() }
     }
 }
 
-impl TStrategy for SStrategyMkTest {
+impl TStrategy for SStrategyMkTestLeveraged {
     fn run(
         &mut self,
         _tp_order_map: &mut STradingPairOrderManagerMapV3,
         _available_assets: &mut SAssetMapV3,
         runner_parse_result: SRunnerParseKlineResult,
-        _debug_config: &SDebugConfig,
+        debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let SRunnerParseKlineResult {
             tp_type,
@@ -41,8 +41,10 @@ impl TStrategy for SStrategyMkTest {
             order_result
         } = runner_parse_result;
         // 输出执行器结果
-        for order_result in order_result {
-            info!("strategy receive order result:\t{:?}", order_result)
+        if debug_config.is_debug {
+            for order_result in order_result {
+                info!("strategy receive order result:\t{:?}", order_result)
+            }
         }
 
         let mut result = Vec::new();
@@ -52,26 +54,22 @@ impl TStrategy for SStrategyMkTest {
             result.push(EStrategyAction::CancelOrder(uuid));
         }
 
-        let price = kline_unit.low_price;
         let base_quantity = Decimal::from_str("0.1").unwrap();
-        let margin_quantity = price * base_quantity;
-        let action_new_order1 = SStrategyOrderAdd {
+        let action_new_order1 = SStrategyOrderAdd{
             id: None,
             tp_type,
             action: EOrderAction::Buy,
-            price,
+            price: kline_unit.low_price,
             base_quantity,
-            margin_quantity,
+            margin_quantity: base_quantity * kline_unit.low_price / Decimal::from(5), // 5倍杠杆
         };
-        let price = kline_unit.high_price;
-        let margin_quantity = price * base_quantity;
-        let action_new_order2 = SStrategyOrderAdd {
+        let action_new_order2 = SStrategyOrderAdd{
             id: None,
             tp_type,
             action: EOrderAction::Sell,
-            price,
+            price: kline_unit.high_price,
             base_quantity,
-            margin_quantity,
+            margin_quantity: base_quantity / Decimal::from(5), // 5倍杠杆
         };
         result.push(EStrategyAction::NewOrder(action_new_order1));
         result.push(EStrategyAction::NewOrder(action_new_order2));
@@ -82,10 +80,10 @@ impl TStrategy for SStrategyMkTest {
         &mut self,
         _tp_type: &ETradingPairType,
         parse_action_results: Vec<ERunnerSyncActionResult>,
-        _debug_config: &SDebugConfig,
+        debug_config: &SDebugConfig,
     ) {
         for result in parse_action_results {
-            info!("strategy verify:\t{:?}", result);
+            if debug_config.is_debug {info!("strategy verify:\t{:?}", result)}
             match result {
                 ERunnerSyncActionResult::OrderPlaced(order, _) => {
                     match order.get_action() {

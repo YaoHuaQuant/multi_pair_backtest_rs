@@ -22,7 +22,7 @@ use crate::{
         },
     },
     data_source::trading_pair::ETradingPairType,
-    protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd},
+    protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult},
     strategy::{
         TStrategy,
     },
@@ -35,6 +35,7 @@ use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
 use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::EOrderDirection;
 use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
+use crate::protocol::strategy_order::SStrategyOrderAdd;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
 use crate::strategy::model::position_model::SPositionModel;
@@ -485,7 +486,8 @@ impl<M: TPriceModel> SStrategyMk5<M> {
                         tp_type,
                         action,
                         price: order_price,
-                        quantity: order_quantity,
+                        base_quantity: order_quantity,
+                        margin_quantity: order_quantity * order_price,
                     }));
                     { // debug
                         // debug!("Mk5::generate_open_orders: new order\ttp_type:{:?}\taction:{:?}\tprice:{:.2?}\tquantity:{:?}"
@@ -640,7 +642,8 @@ impl<M: TPriceModel> SStrategyMk5<M> {
                         tp_type,
                         action,
                         price: tmp_price,
-                        quantity: order_quantity,
+                        base_quantity: order_quantity,
+                        margin_quantity: order_quantity * tmp_price,
                     }));
                     // 更新数据
                     tmp_base_quantity = new_base_quantity;

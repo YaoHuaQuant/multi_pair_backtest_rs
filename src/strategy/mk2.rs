@@ -22,7 +22,7 @@ use crate::{
         },
     },
     data_source::trading_pair::ETradingPairType,
-    protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd},
+    protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, strategy_order::SStrategyOrderAdd},
     strategy::{
         order::trading_pair_order_map::SStrategyTradingPairOrderMap,
         TStrategy,
@@ -420,7 +420,8 @@ impl TStrategy for SStrategyMk2 {
                         tp_type,
                         action,
                         price: order_price,
-                        quantity: order_quantity,
+                        base_quantity: order_quantity,
+                        margin_quantity: order_quantity * order_price,
                     }));
                     // 更新数据
                     price = order_price;
@@ -468,7 +469,8 @@ impl TStrategy for SStrategyMk2 {
                         tp_type,
                         action,
                         price: order_price,
-                        quantity: order_quantity,
+                        base_quantity: order_quantity,
+                        margin_quantity: order_quantity * order_price,
                     }));
                     // 更新数据
                     price = order_price;

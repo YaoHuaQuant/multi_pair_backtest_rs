@@ -50,7 +50,8 @@ use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
 use crate::data_source::trading_pair::ETradingPairType;
-use crate::protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
+use crate::protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult};
+use crate::protocol::strategy_order::SStrategyOrderAdd;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::TStrategy;
 
@@ -179,7 +180,8 @@ impl TStrategy for SStrategyMk1 {
                 tp_type,
                 action: EOrderAction::Sell,
                 price: tmp_price,
-                quantity: tmp_quantity,
+                base_quantity: tmp_quantity,
+                margin_quantity: tmp_quantity * tmp_price,
             }));
             // 重新计算仓位、资产
             tmp_position_ratio = tmp_base_quantity * tmp_price / (tmp_base_quantity * tmp_price + tmp_quote_quantity);
@@ -219,7 +221,8 @@ impl TStrategy for SStrategyMk1 {
                 tp_type,
                 action: EOrderAction::Buy,
                 price: tmp_price,
-                quantity: tmp_quantity,
+                base_quantity: tmp_quantity,
+                margin_quantity: tmp_quantity * tmp_price,
             }));
             // 重新计算仓位、资产
             tmp_position_ratio = tmp_base_quantity * tmp_price / (tmp_base_quantity * tmp_price + tmp_quote_quantity);

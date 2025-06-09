@@ -6,10 +6,9 @@ use uuid::Uuid;
 use crate::{
     data_source::{
         kline::SKlineUnitData,
-        trading_pair::ETradingPairType
+        trading_pair::ETradingPairType,
     }
 };
-use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::order_v3::SOrderV3;
 
 /// Runner处理K线的结果-订单部分
@@ -22,27 +21,65 @@ pub enum ERunnerParseOrderResult {
 /// Runner 处理K线的结果
 #[derive(Debug)]
 pub struct SRunnerParseKlineResult {
-    pub tp_type:ETradingPairType,
+    pub tp_type: ETradingPairType,
     pub new_kline: SKlineUnitData,
     pub new_funding_rate: Decimal,
     pub order_result: Vec<ERunnerParseOrderResult>,
 }
 
-/// 添加策略订单
-#[derive(Debug)]
-pub struct SStrategyOrderAdd {
-    /// 用于映射StrategyOrder的id
-    pub id: Option<Uuid>,
-    pub tp_type: ETradingPairType,
-    pub action: EOrderAction,
-    pub price: Decimal,
-    pub quantity: Decimal,
+pub mod strategy_order {
+    use rust_decimal::Decimal;
+    use uuid::Uuid;
+    use crate::data_runtime::order::EOrderAction;
+    use crate::data_source::trading_pair::ETradingPairType;
+
+    /// 添加策略订单
+    /// 如何识别杠杆资产的多空：
+    ///     1）tp_type必须是杠杆资产类型
+    ///     2）action买入为开仓 卖出为平仓
+    ///     3）买入时，base_quantity>0为做多，base_quantity<0时为做空。卖出时反之亦然。
+    #[derive(Debug)]
+    pub struct SStrategyOrderAdd {
+        /// 用于映射StrategyOrder的id
+        pub id: Option<Uuid>,
+        pub tp_type: ETradingPairType,
+        pub action: EOrderAction,
+        pub price: Decimal,
+        /// 基础货币量
+        pub base_quantity: Decimal,
+        
+        /// 保证金量
+        /// 购买现货时 保证金量=基础货币量*价格
+        /// 购买杠杆资产时 只要保证 保证金量>0即可
+        pub margin_quantity:Decimal,
+    }
+
+    impl SStrategyOrderAdd {
+        pub fn new(
+            id: Option<Uuid>,
+            tp_type: ETradingPairType,
+            action: EOrderAction,
+            price: Decimal,
+            base_quantity: Decimal,
+            margin_quantity: Decimal,
+        ) -> Self {
+            Self {
+                id,
+                tp_type,
+                action,
+                price,
+                base_quantity,
+                margin_quantity,
+            }
+        }
+    }
 }
+
 
 /// 策略行为
 #[derive(Debug)]
 pub enum EStrategyAction {
-    NewOrder(SStrategyOrderAdd),
+    NewOrder(strategy_order::SStrategyOrderAdd),
     CancelOrder(Uuid),
 }
 
