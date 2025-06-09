@@ -6,7 +6,7 @@ use log::error;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::data_runtime::order::EOrderDirection;
-use crate::data_runtime::order::order::SOrder;
+use crate::data_runtime::order::order_v3::SOrderV3;
 use crate::strategy::order::order::{RStrategyOrderResult, SStrategyOrder};
 
 pub type RStrategyOrderManagerV2Result<T> = Result<T, EStrategyOrderManagerV2Error>;
@@ -47,7 +47,6 @@ pub struct SStrategyOrderManagerV2 {
 }
 
 impl SStrategyOrderManagerV2 {
-
     pub fn from(
         min_profit_percentage: Decimal,
         max_profit_percentage: Decimal,
@@ -86,7 +85,7 @@ impl SStrategyOrderManagerV2 {
     }
 
     /// 基于SOrder生成SStrategyOrder并插入
-    pub fn add_with_order(&mut self, order: &SOrder) -> Option<SStrategyOrder> {
+    pub fn add_with_order(&mut self, order: &SOrderV3) -> Option<SStrategyOrder> {
         self.add(SStrategyOrder::new(order))
     }
 
@@ -198,8 +197,8 @@ impl SStrategyOrderManagerV2 {
         let price_step = strategy_order.get_open_price() * self.close_price_step_percentage;
         // 遍历寻找合适的close price
         while match direction {
-            EOrderDirection::Long => {price < price_max}
-            EOrderDirection::Short => {price > price_max}
+            EOrderDirection::Long => { price < price_max }
+            EOrderDirection::Short => { price > price_max }
         } {
             let price_low = price - price_step;
             let price_high = price + price_step;
@@ -219,7 +218,6 @@ impl SStrategyOrderManagerV2 {
                         price = max(price_max, price);
                     }
                 }
-                
             }
         }
         // let price_level = opened_orders.entry(strategy_order.get_open_price()).or_insert_with(Vec::new);
@@ -235,7 +233,7 @@ impl SStrategyOrderManagerV2 {
     /// 将订单移出opened_orders
     fn remove_from_opened_orders(&mut self, strategy_order_id: &Uuid) -> RStrategyOrderManagerV2Result<()> {
         let strategy_order = self.peek_by_id(strategy_order_id)?.clone();
-        let mut opened_orders = match strategy_order.get_direction() {
+        let opened_orders = match strategy_order.get_direction() {
             EOrderDirection::Long => { &mut self.long_opened_orders }
             EOrderDirection::Short => { &mut self.short_opened_orders }
         };
@@ -252,21 +250,21 @@ impl SStrategyOrderManagerV2 {
     /// 清理long_opened_orders中的无效指针
     pub fn clean_long_opened_orders(&mut self) {
         let data_keys: HashSet<_> = self.strategy_orders.keys().cloned().collect();
-        self.long_opened_orders.retain(|price, ids| {
+        self.long_opened_orders.retain(|_price, ids| {
             ids.retain(|id| data_keys.contains(id));
             !ids.is_empty()
         });
     }
-    
+
     /// 清理short_opened_orders中的无效指针
     pub fn clean_short_opened_orders(&mut self) {
         let data_keys: HashSet<_> = self.strategy_orders.keys().cloned().collect();
-        self.short_opened_orders.retain(|price, ids| {
+        self.short_opened_orders.retain(|_price, ids| {
             ids.retain(|id| data_keys.contains(id));
             !ids.is_empty()
         });
     }
-    
+
     pub fn clean_index(&mut self) {
         self.clean_long_opened_orders();
         self.clean_short_opened_orders();
@@ -292,20 +290,20 @@ impl SStrategyOrderManagerV2 {
         let strategy_order = self.peek_mut_by_order_id(order_id)?;
         let result = strategy_order.opened();
         let strategy_order_id = strategy_order.get_id();
-        
+
         match result {
             Ok(_) => {
                 let price = self.push_into_opened_orders(&strategy_order_id)?;
                 Ok(Ok(price))
             }
-            Err(e) => {Ok(Err(e))}
+            Err(e) => { Ok(Err(e)) }
         }
     }
 
     /// 绑定平单
     /// 需要将订单移出opened_orders
     /// 需要将平单加入order_strategy_order_index索引
-    pub fn bind_close_by_order_id(&mut self, order_id: &Uuid, closing_order: &SOrder) -> RStrategyOrderManagerV2Result<RStrategyOrderResult<()>> {
+    pub fn bind_close_by_order_id(&mut self, order_id: &Uuid, closing_order: &SOrderV3) -> RStrategyOrderManagerV2Result<RStrategyOrderResult<()>> {
         let strategy_order = self.peek_mut_by_order_id(order_id)?;
         let result = strategy_order.bind_close(closing_order);
         let strategy_order_id = strategy_order.get_id();
@@ -322,7 +320,7 @@ impl SStrategyOrderManagerV2 {
     /// 绑定平单
     /// 需要将订单移出opened_orders
     /// 需要将平单加入order_strategy_order_index索引
-    pub fn bind_close_by_id(&mut self, strategy_order_id: &Uuid, closing_order: &SOrder) -> RStrategyOrderManagerV2Result<RStrategyOrderResult<()>> {
+    pub fn bind_close_by_id(&mut self, strategy_order_id: &Uuid, closing_order: &SOrderV3) -> RStrategyOrderManagerV2Result<RStrategyOrderResult<()>> {
         let strategy_order = self.peek_mut_by_id(strategy_order_id)?;
         let result = strategy_order.bind_close(closing_order);
         let strategy_order_id = strategy_order.get_id();
@@ -340,11 +338,11 @@ impl SStrategyOrderManagerV2 {
     /// 返回 strategy order 并在外部析构
     pub fn closed_by_order_id(&mut self, order_id: &Uuid) -> RStrategyOrderManagerV2Result<RStrategyOrderResult<SStrategyOrder>> {
         match self.pop_by_order_id(order_id) {
-            None => {Err(EStrategyOrderManagerV2Error::OrderIdNotFound(order_id.clone()))}
+            None => { Err(EStrategyOrderManagerV2Error::OrderIdNotFound(order_id.clone())) }
             Some(mut strategy_order) => {
                 match strategy_order.closed() {
-                    Ok(_) => {Ok(Ok(strategy_order))}
-                    Err(e) => {Ok(Err(e))}
+                    Ok(_) => { Ok(Ok(strategy_order)) }
+                    Err(e) => { Ok(Err(e)) }
                 }
             }
         }
@@ -361,7 +359,7 @@ impl SStrategyOrderManagerV2 {
                 let price = self.push_into_opened_orders(&strategy_order_id)?;
                 Ok(Ok(price))
             }
-            Err(e) => {Ok(Err(e))}
+            Err(e) => { Ok(Err(e)) }
         }
     }
 
@@ -408,8 +406,8 @@ impl SStrategyOrderManagerV2 {
                 let result = self.pop_by_id(&uuid);
                 // 从opened_orders中清除无效索引
                 match is_long {
-                    true => {self.clean_long_opened_orders();}
-                    false => {self.clean_short_opened_orders();}
+                    true => { self.clean_long_opened_orders(); }
+                    false => { self.clean_short_opened_orders(); }
                 }
                 Ok(result)
             }
@@ -466,14 +464,15 @@ mod tests {
     use uuid::Uuid;
 
     use crate::data_runtime::asset::asset::SAsset;
+    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::order::{EOrderAction, EOrderDirection};
-    use crate::data_runtime::order::order::SAddOrder;
-    use crate::data_runtime::order::order_manager::SOrderManager;
+    use crate::data_runtime::order::order_v3::SAddOrder;
+    use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
     use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
     use crate::strategy::order::order_manager_v2::SStrategyOrderManagerV2;
 
-    pub fn get_test_data_origin(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManager, SStrategyOrderManagerV2) {
+    pub fn get_test_data_origin(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManagerV3, SStrategyOrderManagerV2) {
         let min_profit_percentage = Decimal::from_f64(0.01).unwrap();
         let max_profit_percentage = Decimal::from_f64(0.05).unwrap();
         let close_price_step_percentage = Decimal::from_f64(0.001).unwrap();
@@ -482,7 +481,7 @@ mod tests {
             max_profit_percentage,
             close_price_step_percentage,
         );
-        let mut manager = SOrderManager::new();
+        let mut manager = SOrderManagerV3::new();
 
         let price_vec = vec![
             (Decimal::from_str("400").unwrap(), Decimal::from_f64(0.4).unwrap()),
@@ -516,13 +515,13 @@ mod tests {
         (id_vec, manager, strategy_manager)
     }
 
-    pub fn get_test_data_opened(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManager, SStrategyOrderManagerV2) {
-        let (mut id_vec, mut manager, mut strategy_manager)
+    pub fn get_test_data_opened(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManagerV3, SStrategyOrderManagerV2) {
+        let (id_vec, mut manager, mut strategy_manager)
             = get_test_data_origin(direction);
 
         for id in id_vec.iter() {
-            let mut order = manager.orders.get_mut(&id).unwrap();
-            let _ = order.submit(SAsset { as_type: EAssetType::Usdt, balance: order.get_price() * order.get_quantity() });
+            let order = manager.orders.get_mut(&id).unwrap();
+            let _ = order.submit(EAssetUnion::from(SAsset { as_type: EAssetType::Usdt, balance: order.get_price() * order.get_quantity() }));
             let _ = strategy_manager.opened_by_order_id(&id);
         }
         (id_vec, manager, strategy_manager)
@@ -531,11 +530,11 @@ mod tests {
     #[test]
     pub fn test_origin_data() {
         let direction = EOrderDirection::Long;
-        let (id_vec, manager, strategy_manager) = get_test_data_origin(direction);
+        let (_id_vec, manager, strategy_manager) = get_test_data_origin(direction);
         // dbg!(&id_vec);
         // dbg!(&manager);
         // dbg!(&strategy_manager);
-        for (price_level, vec_uuid) in strategy_manager.long_opened_orders.iter() {
+        for (_price_level, vec_uuid) in strategy_manager.long_opened_orders.iter() {
             for strategy_order_id in vec_uuid {
                 let strategy_order = strategy_manager.peek_by_id(&strategy_order_id);
                 assert!(matches!(strategy_order, Ok(_)));
@@ -554,7 +553,7 @@ mod tests {
     #[test]
     pub fn test_opened_data() {
         let direction = EOrderDirection::Long;
-        let (id_vec, manager, strategy_manager) = get_test_data_opened(direction);
+        let (_id_vec, _manager, strategy_manager) = get_test_data_opened(direction);
         let mut iter = strategy_manager.long_opened_orders.iter();
         let (key, value) = iter.next().unwrap();
         assert_eq!(*key, Decimal::from(101));
@@ -613,15 +612,15 @@ mod tests {
         let open_order = manager.peek_order(open_order_id).unwrap().clone();
         let strategy_order = strategy_manager.peek_mut_by_order_id(open_order_id);
         assert!(matches!(strategy_order, Ok(_)));
-        let mut strategy_order = strategy_order.unwrap();
-        let strategy_order_id = strategy_order.get_id();
+        let strategy_order = strategy_order.unwrap();
+        let _strategy_order_id = strategy_order.get_id();
         let close_order_id = manager.add_new_order(SAddOrder {
             action: close_action,
             price: open_order.get_price() * Decimal::from_f64(1.1).unwrap(),
             quantity: open_order.get_quantity(),
         }).unwrap();
         let close_order = manager.peek_order(&close_order_id).unwrap();
-        
+
         let close_price = strategy_order.get_expected_close_price();
         assert!(matches!(close_price, Some(_)));
         let close_price = close_price.unwrap();
@@ -630,7 +629,7 @@ mod tests {
         assert!(matches!(r, Some(_)));
         let r = r.unwrap();
         assert_eq!(r.len(), 1);
-        
+
         // bind close
         let r = strategy_manager.bind_close_by_order_id(&open_order_id, close_order);
         assert!(matches!(r, Ok(_)));
@@ -657,14 +656,14 @@ mod tests {
     #[test]
     pub fn test_opened() {
         let direction = EOrderDirection::Long;
-        let (id_vec, mut manager, mut strategy_manager) = get_test_data_origin(direction);
+        let (id_vec, manager, mut strategy_manager) = get_test_data_origin(direction);
 
         let open_order_id = id_vec.get(1).unwrap();
         let open_order = manager.peek_order(open_order_id).unwrap().clone();
         let strategy_order = strategy_manager.peek_mut_by_order_id(open_order_id);
         assert!(matches!(strategy_order, Ok(_)));
-        let mut strategy_order = strategy_order.unwrap();
-        let strategy_order_id = strategy_order.get_id();
+        let strategy_order = strategy_order.unwrap();
+        let _strategy_order_id = strategy_order.get_id();
 
         // opening
         let r = strategy_manager.long_opened_orders.get(&open_order.get_price());
@@ -686,7 +685,7 @@ mod tests {
     #[test]
     pub fn test_peek_pop_long_opened_order() {
         let direction = EOrderDirection::Long;
-        let (id_vec, manager, mut strategy_manager) = get_test_data_opened(direction);
+        let (_id_vec, _manager, mut strategy_manager) = get_test_data_opened(direction);
 
         // dbg!(&id_vec);
         // dbg!(&manager);
@@ -781,7 +780,7 @@ mod tests {
     #[test]
     pub fn test_peek_pop_short_opened_order() {
         let direction = EOrderDirection::Short;
-        let (id_vec, manager, mut strategy_manager) = get_test_data_opened(direction);
+        let (_id_vec, _manager, mut strategy_manager) = get_test_data_opened(direction);
 
         // dbg!(&id_vec);
         // dbg!(&manager);
@@ -794,23 +793,23 @@ mod tests {
         assert!(matches!(r, Some(_)));
         let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(606.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(594.0).unwrap()));
 
         let strategy_order = strategy_manager.peek_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(101.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(99.0).unwrap()));
 
         // peek
         let r = strategy_manager.peek_highest_short_opened_order().unwrap();
         assert!(matches!(r, Some(_)));
         let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(606.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(594.0).unwrap()));
         let r = strategy_manager.peek_lowest_short_opened_order().unwrap();
         assert!(matches!(r, Some(_)));
         let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(101.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(99.0).unwrap()));
 
         // peek fail
         let r = strategy_manager.peek_highest_long_opened_order().unwrap();
@@ -825,7 +824,7 @@ mod tests {
         assert!(matches!(r, Some(_)));
         let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(600));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(606.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(594.0).unwrap()));
 
         let r = strategy_manager.peek_highest_short_opened_order();
         assert!(matches!(r, Ok(_)));
@@ -833,31 +832,31 @@ mod tests {
         assert!(matches!(r, Some(_)));
         let strategy_order = r.unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(500));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(505.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(495.0).unwrap()));
 
         let r = strategy_manager.pop_highest_short_opened_order();
         assert!(matches!(r, Ok(_)));
         let strategy_order = r.unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(500));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(505.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(495.0).unwrap()));
         let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(100));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(101.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(99.0).unwrap()));
         let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(200));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(202.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(198.0).unwrap()));
         let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(303.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(296.4).unwrap()));
         let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(303.3).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(296.7).unwrap()));
         let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(300));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(303.6).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(297.0).unwrap()));
         let strategy_order = strategy_manager.pop_lowest_short_opened_order().unwrap().unwrap();
         assert_eq!(strategy_order.get_open_price(), Decimal::from(400));
-        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(404.0).unwrap()));
+        assert_eq!(strategy_order.get_expected_close_price(), Some(Decimal::from_f64(396.0).unwrap()));
 
         // pop fail
         let r = strategy_manager.pop_lowest_short_opened_order().unwrap();

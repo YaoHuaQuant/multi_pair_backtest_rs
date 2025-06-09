@@ -18,11 +18,9 @@ use crate::{
     data_runtime::{
         asset::{
             asset::SAsset,
-            asset_map::SAssetMap,
         },
         order::{
             EOrderAction,
-            trading_pair_order_manager_map::STradingPairOrderManagerMap,
         },
     },
     data_source::trading_pair::ETradingPairType,
@@ -34,7 +32,10 @@ use crate::{
 use crate::config::{fee::MAKER_ORDER_FEE, SDebugConfig};
 use crate::config::trading_pair::btc_usdt::TRADDING_PAIR_USDT_MIN_QUANTITY;
 use crate::config::user::INIT_BALANCE_USDT;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
+use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::model::feedback_control::{SPidIntegral, SStrategyPidConfig};
 use crate::strategy::model::price_model_sin_test::SPriceModelSin;
@@ -434,8 +435,8 @@ impl<M: TPriceModel> SStrategyMk3_2<M> {
 impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
     fn run(
         &mut self,
-        tp_order_map: &mut STradingPairOrderManagerMap,
-        available_assets: &mut SAssetMap,
+        tp_order_map: &mut STradingPairOrderManagerMapV3,
+        available_assets: &mut SAssetMapV3,
         runner_parse_result: SRunnerParseKlineResult,
         debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction>
@@ -512,13 +513,13 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
         let locked_assets = tp_order_map
             .calculate_total_assets();
         let total_assets = available_assets.clone() + locked_assets;
-        let tmp_base_asset = SAsset { as_type: tp_type.get_base_currency(), balance: Decimal::from(0) };
-        let tmp_quote_asset = SAsset { as_type: tp_type.get_quote_currency(), balance: Decimal::from(0) };
+        let tmp_base_asset = EAssetUnion::from(SAsset { as_type: tp_type.get_base_currency_type(), balance: Decimal::from(0) });
+        let tmp_quote_asset = EAssetUnion::from(SAsset { as_type: tp_type.get_quote_currency_type(), balance: Decimal::from(0) });
         let assets_base = total_assets
-            .get(&tp_type.get_base_currency())
+            .get(&tp_type.get_base_currency_type())
             .unwrap_or(&tmp_base_asset);
         let assets_quote = total_assets
-            .get(&tp_type.get_quote_currency())
+            .get(&tp_type.get_quote_currency_type())
             .unwrap_or(&tmp_quote_asset);
         // todo 只做多
         let direction = EOrderDirection::Long;
@@ -541,11 +542,11 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
         // 价格
         let mut price = new_kline.close_price;
         // 基础货币量
-        let mut base_quantity = assets_base.balance;
+        let mut base_quantity = assets_base.get_balance();
         // 计价货币量
-        let mut quote_quantity = assets_quote.balance;
+        let mut quote_quantity = assets_quote.get_balance();
         // 实际仓位占比
-        let mut position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+        let position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         // 软仓位占比（PI控制）
         let mut soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
         if debug_config.is_debug { debug!("Mk3:Sell\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100)); }
@@ -657,14 +658,14 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
         // 3.3 循环计算买单
         // 重置数据
         price = new_kline.close_price;
-        base_quantity = assets_base.balance;
-        quote_quantity = assets_quote.balance;
-        position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+        base_quantity = assets_base.get_balance();
+        quote_quantity = assets_quote.get_balance();
+        // position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         cut_off_price = price * (Decimal::from(1) - self.cut_off_price_percentage);
         position = EOrderPosition::Open;
         action = EOrderAction::Buy;
 
-        soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
+        // soft_target_position = self.get_dynamic_position_with_static_position(price, base_quantity, quote_quantity, target_position_ratio);
         // 死区/活区控制
         // debug!("Mk3:Buy\tsoft_target_position before 死区/活区 控制:{:.4?}%", soft_target_position*Decimal::from(100));
         // debug!("Mk3:Buy\tposition_ratio:{:?}\ttarget_position_ratio:{:.4?}%", position_ratio, target_position_ratio*Decimal::from(100));
@@ -697,7 +698,7 @@ impl<M: TPriceModel> TStrategy for SStrategyMk3_2<M> {
                     break;
                 }
                 Some(SNextOrderFormat {
-                         id: id,
+                         id,
                          price: order_price,
                          quantity: order_quantity,
                          base_quantity: new_base_quantity,

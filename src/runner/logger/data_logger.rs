@@ -4,7 +4,7 @@ use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use uuid::Uuid;
-use crate::data_runtime::asset::asset_map::{SAssetMap};
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
@@ -33,10 +33,10 @@ impl SDataLogger {
     pub fn add_kline_data(&mut self, data: SDataLogKlineUnit) {
         let _ = self.kline_data.insert(data.time, data);
     }
-    
+
     /// 将另一个相同类型的对象合并到self中
-    pub fn append(&mut self, other:&mut Self) {
-        let Self{user_data, kline_data} = other;
+    pub fn append(&mut self, other: &mut Self) {
+        let Self { user_data, kline_data } = other;
         self.user_data.append(user_data);
         self.kline_data.append(kline_data);
     }
@@ -58,18 +58,18 @@ impl SDataLogger {
             };
 
             // 获取单类资产的balance
-            let fn_get_asset_balance = |map: &SAssetMap, as_type: &EAssetType| {
+            let fn_get_asset_balance = |map: &SAssetMapV3, as_type: &EAssetType| {
                 match map.get(as_type) {
-                    Ok(x) => { x.balance }
+                    Ok(x) => { x.get_balance() }
                     Err(_e) => { Decimal::from(0) }
                 }
             };
 
             // 获取单类资产的USDT计价
-            let fn_get_usdt_asset_slice_from_asset_map = |map: &SAssetMap,
+            let fn_get_usdt_asset_slice_from_asset_map = |map: &SAssetMapV3,
                                                           as_type: &EAssetType,
                                                           trading_pair_prices: &HashMap<ETradingPairType, Decimal>| {
-                let mut new_map = SAssetMap::new();
+                let mut new_map = SAssetMapV3::new();
                 match map.get(as_type) {
                     Ok(map_slice) => {
                         new_map.merge_asset(map_slice.clone());
@@ -262,10 +262,10 @@ struct SMergeOutput {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::thread;
     use chrono::{Duration, Local};
     use rust_decimal::Decimal;
     use crate::data_runtime::asset::asset::SAsset;
+    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::user::{SUser, SUserConfig};
     use crate::data_source::trading_pair::ETradingPairType;
@@ -274,7 +274,7 @@ mod tests {
     use crate::runner::logger::user_unit::SDataLogUserUnit;
     use crate::strategy::mk_test::SStrategyMkTest;
 
-    pub fn get_data1() -> SDataLogger{
+    pub fn get_data1() -> SDataLogger {
         let mut data = SDataLogger::new();
 
         // 插入数据1
@@ -301,9 +301,9 @@ mod tests {
         data.add_user_data(user_data);
 
         // 插入数据2
-        let time = Local::now()+Duration::minutes(1);
-        user.merge_available_asset(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(20_000) });
-        user.merge_available_asset(SAsset { as_type: EAssetType::Btc, balance: Decimal::from(9) });
+        let time = Local::now() + Duration::minutes(1);
+        user.merge_available_asset(EAssetUnion::from(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(20_000) }));
+        user.merge_available_asset(EAssetUnion::from(SAsset { as_type: EAssetType::Btc, balance: Decimal::from(9) }));
         let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
         trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(11_000));
 
@@ -318,7 +318,7 @@ mod tests {
         data.add_user_data(user_data);
 
         // 插入数据3
-        let time = Local::now()+Duration::minutes(2);
+        let time = Local::now() + Duration::minutes(2);
         let _ = user.split_available_asset(EAssetType::Usdt, Decimal::from(10_000));
         let _ = user.split_available_asset(EAssetType::Btc, Decimal::from(5));
         let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
@@ -336,11 +336,11 @@ mod tests {
         data
     }
 
-    pub fn get_data2() -> SDataLogger{
+    pub fn get_data2() -> SDataLogger {
         let mut data = SDataLogger::new();
 
         // 插入数据1
-        let time = Local::now()+Duration::minutes(5);
+        let time = Local::now() + Duration::minutes(5);
         let mut user = SUser::new(
             SUserConfig {
                 user_name: "test user".to_string(),
@@ -363,9 +363,9 @@ mod tests {
         data.add_user_data(user_data);
 
         // 插入数据2
-        let time = Local::now()+Duration::minutes(6);
-        user.merge_available_asset(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(20_000) });
-        user.merge_available_asset(SAsset { as_type: EAssetType::Btc, balance: Decimal::from(9) });
+        let time = Local::now() + Duration::minutes(6);
+        user.merge_available_asset(EAssetUnion::from(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(20_000) }));
+        user.merge_available_asset(EAssetUnion::from(SAsset { as_type: EAssetType::Btc, balance: Decimal::from(9) }));
         let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
         trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(11_000));
 
@@ -380,7 +380,7 @@ mod tests {
         data.add_user_data(user_data);
 
         // 插入数据3
-        let time = Local::now()+Duration::minutes(7);
+        let time = Local::now() + Duration::minutes(7);
         let _ = user.split_available_asset(EAssetType::Usdt, Decimal::from(10_000));
         let _ = user.split_available_asset(EAssetType::Btc, Decimal::from(5));
         let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();

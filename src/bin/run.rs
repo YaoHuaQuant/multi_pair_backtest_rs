@@ -1,5 +1,4 @@
 use dotenv::dotenv;
-use log::debug;
 use multi_pair_backtest_rs::data_source::db::api::data_api_db::SDataApiDb;
 use multi_pair_backtest_rs::runner::back_trade::runner::SBackTradeRunner;
 use multi_pair_backtest_rs::script::SScript;

@@ -109,7 +109,7 @@ impl TPriceModel for SPriceModelLongTermTrend {
         }
     }
 
-    fn update_model(&mut self, time: DateTime<Local>, price: Decimal) {
+    fn update_model(&mut self, _time: DateTime<Local>, _price: Decimal) {
         // 不需要update
     }
 }

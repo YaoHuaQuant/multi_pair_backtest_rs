@@ -3,19 +3,20 @@
 use std::collections::HashMap;
 
 use crate::data_runtime::asset::asset_map::SAssetMap;
-use crate::data_runtime::order::order_manager::SOrderManager;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
 use crate::data_source::trading_pair::ETradingPairType;
 
 /// TradingPair 和 OrderManager 的Map映射
 #[derive(Debug, Default)]
-pub struct STradingPairOrderManagerMap {
-    pub inner: HashMap<ETradingPairType, SOrderManager>,
+pub struct STradingPairOrderManagerMapV3 {
+    pub inner: HashMap<ETradingPairType, SOrderManagerV3>,
 }
 
-impl STradingPairOrderManagerMap {
+impl STradingPairOrderManagerMapV3 {
     /// 统计每种资产的总锁定量
-    pub fn calculate_total_assets(&self) -> SAssetMap {
-        let mut result = SAssetMap::new();
+    pub fn calculate_total_assets(&self) -> SAssetMapV3 {
+        let mut result = SAssetMapV3::new();
         for (_, order_manager) in self.inner.iter() {
             let asset_manager = order_manager.calculate_total_assets();
             result += asset_manager;
@@ -33,15 +34,15 @@ impl STradingPairOrderManagerMap {
         result
     }
 
-    pub fn insert(&mut self, tp_type: ETradingPairType, order_manager: SOrderManager) -> Option<SOrderManager> {
+    pub fn insert(&mut self, tp_type: ETradingPairType, order_manager: SOrderManagerV3) -> Option<SOrderManagerV3> {
         self.inner.insert(tp_type, order_manager)
     }
 
-    pub fn get(&self, key: &ETradingPairType) -> Option<&SOrderManager> {
+    pub fn get(&self, key: &ETradingPairType) -> Option<&SOrderManagerV3> {
         self.inner.get(key)
     }
 
-    pub fn get_mut(&mut self, key: &ETradingPairType) -> Option<&mut SOrderManager> {
+    pub fn get_mut(&mut self, key: &ETradingPairType) -> Option<&mut SOrderManagerV3> {
         self.inner.get_mut(key)
     }
 }

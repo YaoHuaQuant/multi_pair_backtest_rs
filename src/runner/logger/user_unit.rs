@@ -4,13 +4,15 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::data_runtime::asset::asset::SAsset;
 use crate::data_runtime::asset::asset_map::SAssetMap;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::user::SUser;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::runner::logger::order_unit::SDataLogOrderUnit;
 use crate::runner::logger::transfer_unit::SDataLogTransferUnit;
 use crate::strategy::TStrategy;
-use crate::utils::assets_map_denominate_usdt;
+use crate::utils::{assets_map_denominate_usdt, assets_map_denominate_usdt_old};
 
 #[derive(Debug, Clone)]
 pub struct SDataLogUserUnit {
@@ -23,13 +25,13 @@ pub struct SDataLogUserUnit {
 
     // -----交易信息-----
     pub transfer_info: SDataLogTransferUnit,
-    
+
     // -----挂单信息-----
     pub order_info: SDataLogOrderUnit,
 
     // -----资产信息-----
     /// 总资产
-    pub total_assets: SAssetMap,
+    pub total_assets: SAssetMapV3,
     /// 总资产（Usdt计价）
     pub total_assets_usdt: Decimal,
 
@@ -37,12 +39,12 @@ pub struct SDataLogUserUnit {
     pub total_usdt: Decimal,
 
     /// 可用资产
-    pub available_assets: SAssetMap,
+    pub available_assets: SAssetMapV3,
     /// 可用产（Usdt计价）
     pub available_assets_usdt: Decimal,
 
     /// 锁定资产
-    pub locked_assets: SAssetMap,
+    pub locked_assets: SAssetMapV3,
     /// 锁定资产（Usdt计价）
     pub locked_assets_usdt: Decimal,
 
@@ -65,8 +67,8 @@ impl SDataLogUserUnit {
         transfer_info: &SDataLogTransferUnit,
     ) -> Self {
         let total_usdt = user.total_asset().get(&EAssetType::Usdt)
-            .unwrap_or(&SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(0) })
-            .balance;
+            .unwrap_or(&EAssetUnion::from(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(0) }))
+            .get_balance();
 
         let order_manager = user.tp_order_map.get(&ETradingPairType::BtcUsdt).unwrap();
 
@@ -78,8 +80,8 @@ impl SDataLogUserUnit {
             None => { None }
             Some(order) => { Some(order.get_price()) }
         };
-        
-        let order_info  = SDataLogOrderUnit{
+
+        let order_info = SDataLogOrderUnit {
             btc_usdt_highest_buy_price,
             btc_usdt_lowest_sell_price,
         };
@@ -99,7 +101,7 @@ impl SDataLogUserUnit {
             locked_assets: user.locked_assets(),
             locked_assets_usdt: assets_map_denominate_usdt(&user.locked_assets(), &trading_pair_prices),
             total_fee: user.total_fee(),
-            total_fee_usdt: assets_map_denominate_usdt(&user.total_fee(), &trading_pair_prices),
+            total_fee_usdt: assets_map_denominate_usdt_old(&user.total_fee(), &trading_pair_prices),
             target_position_ratio,
         }
     }

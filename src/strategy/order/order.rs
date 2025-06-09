@@ -3,7 +3,7 @@ use std::cmp::PartialEq;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::data_runtime::order::{EOrderAction, EOrderDirection};
-use crate::data_runtime::order::order::SOrder;
+use crate::data_runtime::order::order_v3::SOrderV3;
 
 pub type RStrategyOrderResult<T> = Result<T, EStrategyOrderError>;
 
@@ -59,7 +59,7 @@ pub struct SStrategyOrder {
 
 impl SStrategyOrder {
     /// 基于已提交的open订单进行构建
-    pub fn new(opening_order: &SOrder) -> Self {
+    pub fn new(opening_order: &SOrderV3) -> Self {
         let open_order_id = opening_order.get_id();
         let action = opening_order.get_action();
         let open_price = opening_order.get_price();
@@ -93,7 +93,7 @@ impl SStrategyOrder {
     }
 
     /// 绑定平单
-    pub fn bind_close(&mut self, closing_order: &SOrder) -> RStrategyOrderResult<()> {
+    pub fn bind_close(&mut self, closing_order: &SOrderV3) -> RStrategyOrderResult<()> {
         self.set_state(EStrategyOrderState::Opened, EStrategyOrderState::Closing)?;
         if self.quantity != closing_order.get_quantity() {
             Err(EStrategyOrderError::InconsistentQuantityBetweenOrderPair(self.quantity, closing_order.get_quantity()))
@@ -190,30 +190,31 @@ mod tests {
     use rust_decimal::prelude::FromPrimitive;
     use crate::data_runtime::order::EOrderDirection;
     use crate::data_runtime::order::order::SOrder;
+    use crate::data_runtime::order::order_v3::SOrderV3;
     use crate::strategy::order::order::{EStrategyOrderError, EStrategyOrderState, SStrategyOrder};
 
-    pub fn get_test_data_open_order() -> SOrder {
+    pub fn get_test_data_open_order() -> SOrderV3 {
         let price = Decimal::from(100_000);
         let quantity = Decimal::from_f64(0.5).unwrap();
-        SOrder::new_buy_order(
+        SOrderV3::new_buy_order(
             price,
             quantity,
         )
     }
 
-    pub fn get_test_data_close_order1() -> SOrder {
+    pub fn get_test_data_close_order1() -> SOrderV3 {
         let price = Decimal::from(110_000);
         let quantity = Decimal::from_f64(0.5).unwrap();
-        SOrder::new_sell_order(
+        SOrderV3::new_sell_order(
             price,
             quantity,
         )
     }
 
-    pub fn get_test_data_close_order2() -> SOrder {
+    pub fn get_test_data_close_order2() -> SOrderV3 {
         let price = Decimal::from(110_000);
         let quantity = Decimal::from_f64(0.51).unwrap();
-        SOrder::new_sell_order(
+        SOrderV3::new_sell_order(
             price,
             quantity,
         )

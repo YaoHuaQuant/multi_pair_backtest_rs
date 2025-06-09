@@ -1,8 +1,8 @@
 use chrono::{DateTime, Local};
 use rust_decimal::Decimal;
 use crate::config::SDebugConfig;
-use crate::data_runtime::asset::asset_map::SAssetMap;
-use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult};
 use crate::strategy::logger::SStrategyLogger;
@@ -16,13 +16,14 @@ pub mod model;
 pub mod logger;
 pub mod mk3_2;
 pub mod mk4;
+pub mod mk5;
 
 /// 策略接口
 pub trait TStrategy {
     fn run(
         &mut self,
-        tp_order_map: &mut STradingPairOrderManagerMap,
-        available_assets: &mut SAssetMap,
+        tp_order_map: &mut STradingPairOrderManagerMapV3,
+        available_assets: &mut SAssetMapV3,
         runner_parse_result: SRunnerParseKlineResult,
         debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction>;

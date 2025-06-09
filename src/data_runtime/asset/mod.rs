@@ -1,5 +1,8 @@
 pub mod asset;
 pub mod asset_map;
+pub mod asset_map_v3;
+pub mod asset_leveraged;
+pub mod asset_union;
 
 /// 资产类型
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]

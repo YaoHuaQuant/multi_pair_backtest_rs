@@ -5,10 +5,10 @@ use log::info;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::config::SDebugConfig;
-use crate::data_runtime::asset::asset_map::SAssetMap;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
 use crate::data_runtime::order::EOrderAction;
 use crate::protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
-use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
+use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::TStrategy;
@@ -28,10 +28,10 @@ impl Default for SStrategyMkTest {
 impl TStrategy for SStrategyMkTest {
     fn run(
         &mut self,
-        tp_order_map: &mut STradingPairOrderManagerMap,
-        available_assets: &mut SAssetMap,
+        _tp_order_map: &mut STradingPairOrderManagerMapV3,
+        _available_assets: &mut SAssetMapV3,
         runner_parse_result: SRunnerParseKlineResult,
-        debug_config: &SDebugConfig,
+        _debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let SRunnerParseKlineResult {
             tp_type,
@@ -72,9 +72,9 @@ impl TStrategy for SStrategyMkTest {
 
     fn verify(
         &mut self,
-        tp_type: &ETradingPairType,
+        _tp_type: &ETradingPairType,
         parse_action_results: Vec<ERunnerSyncActionResult>,
-        debug_config: &SDebugConfig,
+        _debug_config: &SDebugConfig,
     ) {
         for result in parse_action_results {
             info!("strategy verify:\t{:?}", result);

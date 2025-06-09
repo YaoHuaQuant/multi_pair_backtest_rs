@@ -23,8 +23,8 @@ impl STradingPair {
     pub fn new(tp_type: ETradingPairType, kline_data: SKlineData, funding_rate: Option<SFundingRateData>) -> Self {
         Self {
             tp_type,
-            base_currency: tp_type.get_base_currency(),
-            quote_currency: tp_type.get_quote_currency(),
+            base_currency: tp_type.get_base_currency_type(),
+            quote_currency: tp_type.get_quote_currency_type(),
             kline_data,
             funding_rate,
         }

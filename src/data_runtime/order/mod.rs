@@ -1,6 +1,9 @@
 pub mod order;
 pub mod order_manager;
 pub mod trading_pair_order_manager_map;
+pub mod order_v3;
+pub mod order_manager_v3;
+pub mod trading_pair_order_manager_map_v3;
 
 /// 持仓方向
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

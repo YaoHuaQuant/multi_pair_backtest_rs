@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::data_runtime::order::EOrderDirection;
-use crate::data_runtime::order::order::SOrder;
+use crate::data_runtime::order::order_v3::SOrderV3;
 use crate::strategy::order::order::{EStrategyOrderState, RStrategyOrderResult, SStrategyOrder};
 
 pub type RStrategyOrderManagerResult<T> = Result<T, EStrategyOrderManagerError>;
@@ -70,7 +70,7 @@ impl SStrategyOrderManager {
     }
 
     /// 基于SOrder生成SStrategyOrder并插入
-    pub fn add_with_order(&mut self, order: &SOrder) -> Option<SStrategyOrder> {
+    pub fn add_with_order(&mut self, order: &SOrderV3) -> Option<SStrategyOrder> {
         self.add(SStrategyOrder::new(order))
     }
 
@@ -154,7 +154,7 @@ impl SStrategyOrderManager {
     /// 将订单写入opened_orders
     fn push_into_opened_orders(&mut self, strategy_order_id: &Uuid) -> RStrategyOrderManagerResult<()> {
         let strategy_order = self.peek_by_id(strategy_order_id)?.clone();
-        let mut opened_orders = match strategy_order.get_direction() {
+        let opened_orders = match strategy_order.get_direction() {
             EOrderDirection::Long => { &mut self.long_opened_orders }
             EOrderDirection::Short => { &mut self.short_opened_orders }
         };
@@ -166,7 +166,7 @@ impl SStrategyOrderManager {
     /// 将订单移出opened_orders
     fn remove_from_opened_orders(&mut self, strategy_order_id: &Uuid) -> RStrategyOrderManagerResult<()> {
         let strategy_order = self.peek_by_id(strategy_order_id)?.clone();
-        let mut opened_orders = match strategy_order.get_direction() {
+        let opened_orders = match strategy_order.get_direction() {
             EOrderDirection::Long => { &mut self.long_opened_orders }
             EOrderDirection::Short => { &mut self.short_opened_orders }
         };
@@ -186,7 +186,7 @@ impl SStrategyOrderManager {
         let strategy_order = self.peek_mut_by_order_id(order_id)?;
         let strategy_order_id = strategy_order.get_id();
         match strategy_order.cancel_open() {
-            Err(e) => {Ok(Err(e))}
+            Err(e) => { Ok(Err(e)) }
             Ok(_) => {
                 Ok(Ok(self.pop_by_id(&strategy_order_id).unwrap()))
             }
@@ -210,7 +210,7 @@ impl SStrategyOrderManager {
     /// 绑定平单
     /// 需要将订单移出opened_orders
     /// 需要将平单加入order_strategy_order_index索引
-    pub fn bind_close_by_order_id(&mut self, order_id: &Uuid, closing_order: &SOrder) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
+    pub fn bind_close_by_order_id(&mut self, order_id: &Uuid, closing_order: &SOrderV3) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
         let strategy_order = self.peek_mut_by_order_id(order_id)?;
         let result = strategy_order.bind_close(closing_order);
         let strategy_order_id = strategy_order.get_id();
@@ -227,7 +227,7 @@ impl SStrategyOrderManager {
     /// 绑定平单
     /// 需要将订单移出opened_orders
     /// 需要将平单加入order_strategy_order_index索引
-    pub fn bind_close_by_id(&mut self, strategy_order_id: &Uuid, closing_order: &SOrder) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
+    pub fn bind_close_by_id(&mut self, strategy_order_id: &Uuid, closing_order: &SOrderV3) -> RStrategyOrderManagerResult<RStrategyOrderResult<()>> {
         let strategy_order = self.peek_mut_by_id(strategy_order_id)?;
         let result = strategy_order.bind_close(closing_order);
         let strategy_order_id = strategy_order.get_id();
@@ -297,7 +297,7 @@ impl SStrategyOrderManager {
             None => { Ok(None) }
             Some(uuid) => {
                 // todo 从open_orders中删除
-                let order_set = if is_long { &self.long_opened_orders } else { &self.short_opened_orders };
+                let _order_set = if is_long { &self.long_opened_orders } else { &self.short_opened_orders };
                 Ok(self.pop_by_id(&uuid))
             }
         }
@@ -353,16 +353,18 @@ mod tests {
     use uuid::Uuid;
 
     use crate::data_runtime::asset::asset::SAsset;
+    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::order::{EOrderAction, EOrderDirection};
-    use crate::data_runtime::order::order::SAddOrder;
+    use crate::data_runtime::order::order_v3::SAddOrder;
     use crate::data_runtime::order::order_manager::SOrderManager;
+    use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
     use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
     use crate::strategy::order::order_manager::SStrategyOrderManager;
 
-    pub fn get_test_data_origin(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManager, SStrategyOrderManager) {
+    pub fn get_test_data_origin(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManagerV3, SStrategyOrderManager) {
         let mut strategy_manager = SStrategyOrderManager::new();
-        let mut manager = SOrderManager::new();
+        let mut manager = SOrderManagerV3::new();
 
         let price_vec = vec![
             (Decimal::from_str("400").unwrap(), Decimal::from_f64(0.4).unwrap()),
@@ -395,13 +397,13 @@ mod tests {
         (id_vec, manager, strategy_manager)
     }
 
-    pub fn get_test_data_opened(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManager, SStrategyOrderManager) {
-        let (mut id_vec, mut manager, mut strategy_manager)
+    pub fn get_test_data_opened(direction: EOrderDirection) -> (Vec<Uuid>, SOrderManagerV3, SStrategyOrderManager) {
+        let (id_vec, mut manager, mut strategy_manager)
             = get_test_data_origin(direction);
 
         for id in id_vec.iter() {
-            let mut order = manager.orders.get_mut(&id).unwrap();
-            let _ = order.submit(SAsset { as_type: EAssetType::Usdt, balance: order.get_price() * order.get_quantity() });
+            let order = manager.orders.get_mut(&id).unwrap();
+            let _ = order.submit(EAssetUnion::from(SAsset { as_type: EAssetType::Usdt, balance: order.get_price() * order.get_quantity() }));
             let _ = strategy_manager.opened_by_order_id(&id);
         }
         (id_vec, manager, strategy_manager)
@@ -410,11 +412,11 @@ mod tests {
     #[test]
     pub fn test_origin_data() {
         let direction = EOrderDirection::Long;
-        let (id_vec, manager, strategy_manager) = get_test_data_origin(direction);
+        let (_id_vec, manager, strategy_manager) = get_test_data_origin(direction);
         // dbg!(&id_vec);
         // dbg!(&manager);
         // dbg!(&strategy_manager);
-        for (price_level, vec_uuid) in strategy_manager.long_opened_orders.iter() {
+        for (_price_level, vec_uuid) in strategy_manager.long_opened_orders.iter() {
             for strategy_order_id in vec_uuid {
                 let strategy_order = strategy_manager.peek_by_id(&strategy_order_id);
                 assert!(matches!(strategy_order, Ok(_)));
@@ -433,7 +435,7 @@ mod tests {
     #[test]
     pub fn test_opened_data() {
         let direction = EOrderDirection::Long;
-        let (id_vec, manager, strategy_manager) = get_test_data_opened(direction);
+        let (_id_vec, _manager, strategy_manager) = get_test_data_opened(direction);
         let mut iter = strategy_manager.long_opened_orders.iter();
         let (key, value) = iter.next().unwrap();
         assert_eq!(*key, Decimal::from(100));
@@ -486,8 +488,8 @@ mod tests {
         let open_order = manager.peek_order(open_order_id).unwrap().clone();
         let strategy_order = strategy_manager.peek_mut_by_order_id(open_order_id);
         assert!(matches!(strategy_order, Ok(_)));
-        let mut strategy_order = strategy_order.unwrap();
-        let strategy_order_id = strategy_order.get_id();
+        let strategy_order = strategy_order.unwrap();
+        let _strategy_order_id = strategy_order.get_id();
         let close_order_id = manager.add_new_order(SAddOrder {
             action: close_action,
             price: open_order.get_price() * Decimal::from_f64(1.1).unwrap(),
@@ -520,14 +522,14 @@ mod tests {
     #[test]
     pub fn test_opened() {
         let direction = EOrderDirection::Long;
-        let (id_vec, mut manager, mut strategy_manager) = get_test_data_origin(direction);
+        let (id_vec, manager, mut strategy_manager) = get_test_data_origin(direction);
 
         let open_order_id = id_vec.get(1).unwrap();
         let open_order = manager.peek_order(open_order_id).unwrap().clone();
         let strategy_order = strategy_manager.peek_mut_by_order_id(open_order_id);
         assert!(matches!(strategy_order, Ok(_)));
-        let mut strategy_order = strategy_order.unwrap();
-        let strategy_order_id = strategy_order.get_id();
+        let strategy_order = strategy_order.unwrap();
+        let _strategy_order_id = strategy_order.get_id();
 
         // opening
         let r = strategy_manager.long_opened_orders.get(&open_order.get_price());
@@ -549,7 +551,7 @@ mod tests {
     #[test]
     pub fn test_peek_pop_long_opened_order() {
         let direction = EOrderDirection::Long;
-        let (id_vec, manager, mut strategy_manager) = get_test_data_opened(direction);
+        let (_id_vec, _manager, mut strategy_manager) = get_test_data_opened(direction);
 
         // dbg!(&id_vec);
         // dbg!(&manager);
@@ -628,7 +630,7 @@ mod tests {
     #[test]
     pub fn test_peek_pop_short_opened_order() {
         let direction = EOrderDirection::Short;
-        let (id_vec, manager, mut strategy_manager) = get_test_data_opened(direction);
+        let (_id_vec, _manager, mut strategy_manager) = get_test_data_opened(direction);
 
         // dbg!(&id_vec);
         // dbg!(&manager);

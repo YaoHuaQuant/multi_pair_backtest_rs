@@ -28,7 +28,7 @@ impl TDataApi for SDataApiDb {
         Ok(result)
     }
 
-    async fn get_funding_rate(&self, from: &DateTime<Local>, to: &DateTime<Local>) -> RDBResult<SFundingRateData> {
+    async fn get_funding_rate(&self, _from: &DateTime<Local>, _to: &DateTime<Local>) -> RDBResult<SFundingRateData> {
         todo!()
     }
 }

@@ -11,11 +11,10 @@ use uuid::Uuid;
 use crate::{
     data_runtime::{
         asset::{
-            asset::SAsset,
-            asset_map::SAssetMap,
+            asset_map_v3::SAssetMapV3,
             EAssetType,
         },
-        order::trading_pair_order_manager_map::STradingPairOrderManagerMap,
+        order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3,
     },
     data_source::trading_pair::ETradingPairType,
     protocol::{ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult},
@@ -23,7 +22,10 @@ use crate::{
 };
 use crate::config::SDebugConfig;
 use crate::config::user::INIT_BALANCE_USDT;
-use crate::data_runtime::asset::asset_map::RAssetMapResult;
+use crate::data_runtime::asset::asset::SAsset;
+use crate::data_runtime::asset::asset_map::SAssetMap;
+use crate::data_runtime::asset::asset_map_v3::RAssetMapV3Result;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 
 #[derive(Debug, Clone)]
 pub struct SUserConfig {
@@ -52,10 +54,10 @@ pub struct SUser<S: TStrategy> {
     pub name: String,
 
     /// 订单管理器
-    pub tp_order_map: STradingPairOrderManagerMap,
+    pub tp_order_map: STradingPairOrderManagerMapV3,
 
     /// 可用资产管理器
-    pub available_assets: SAssetMap,
+    pub available_assets: SAssetMapV3,
 
     /// 策略
     pub strategy: S,
@@ -63,10 +65,14 @@ pub struct SUser<S: TStrategy> {
 
 impl<S: TStrategy> SUser<S> {
     pub fn new(config: SUserConfig, strategy: S) -> Self {
-        let mut available_assets = SAssetMap::new();
-        available_assets.merge_asset(SAsset { as_type: EAssetType::Usdt, balance: config.init_balance_usdt });
-        available_assets.merge_asset(SAsset { as_type: EAssetType::Btc, balance: config.init_balance_btc });
-        let mut tp_order_map = STradingPairOrderManagerMap { inner: Default::default() };
+        let mut available_assets = SAssetMapV3::new();
+        available_assets.merge_asset(
+            EAssetUnion::from(SAsset{ as_type: EAssetType::Usdt, balance: config.init_balance_usdt })
+        );
+        available_assets.merge_asset(
+            EAssetUnion::from(SAsset{ as_type: EAssetType::Btc, balance: config.init_balance_btc })
+        );
+        let mut tp_order_map = STradingPairOrderManagerMapV3 { inner: Default::default() };
         tp_order_map.inner.insert(ETradingPairType::BtcUsdt, Default::default());
         tp_order_map.inner.insert(ETradingPairType::BtcUsdCmFuture, Default::default());
         tp_order_map.inner.insert(ETradingPairType::BtcUsdtFuture, Default::default());
@@ -99,17 +105,17 @@ impl<S: TStrategy> SUser<S> {
     }
 
     /// 累计用户的总资产
-    pub fn total_asset(&self) -> SAssetMap {
+    pub fn total_asset(&self) -> SAssetMapV3 {
         self.locked_assets() + self.available_assets()
     }
 
     /// 累计用户的总资产
-    pub fn locked_assets(&self) -> SAssetMap {
+    pub fn locked_assets(&self) -> SAssetMapV3 {
         self.tp_order_map.calculate_total_assets()
     }
 
     /// 累计用户的总资产
-    pub fn available_assets(&self) -> SAssetMap {
+    pub fn available_assets(&self) -> SAssetMapV3 {
         self.available_assets.clone()
     }
 
@@ -119,12 +125,12 @@ impl<S: TStrategy> SUser<S> {
     }
 
     /// 向可用资产插入SAsset
-    pub fn merge_available_asset(&mut self, other: SAsset) {
+    pub fn merge_available_asset(&mut self, other: EAssetUnion) {
         self.available_assets.merge_asset(other)
     }
 
     /// 从可用资产中拆分出一部分
-    pub fn split_available_asset(&mut self, as_type: EAssetType, balance: Decimal) -> RAssetMapResult<SAsset> {
+    pub fn split_available_asset(&mut self, as_type: EAssetType, balance: Decimal) -> RAssetMapV3Result<EAssetUnion> {
         self.available_assets.split(as_type, balance)
     }
 }
@@ -136,11 +142,12 @@ mod tests {
     use rust_decimal::Decimal;
 
     use crate::data_runtime::asset::asset::SAsset;
+    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::order::EOrderAction;
-    use crate::data_runtime::order::order::SAddOrder;
-    use crate::data_runtime::order::order_manager::SOrderManager;
-    use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
+    use crate::data_runtime::order::order_v3::SAddOrder;
+    use crate::data_runtime::order::order_manager_v3::SOrderManagerV3;
+    use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
     use crate::data_runtime::user::{SUser, SUserConfig};
     use crate::data_source::trading_pair::ETradingPairType;
     use crate::strategy::mk_test::SStrategyMkTest;
@@ -152,8 +159,8 @@ mod tests {
             init_balance_btc: Decimal::from(0),
         };
         let mut user = SUser::new(user_config, SStrategyMkTest::default());
-        let mut tp_order_map = STradingPairOrderManagerMap::default();
-        let mut order_manager = SOrderManager::new();
+        let mut tp_order_map = STradingPairOrderManagerMapV3::default();
+        let mut order_manager = SOrderManagerV3::new();
 
         let price_vec1 = vec![
             Decimal::from_str("100").unwrap(),
@@ -165,14 +172,15 @@ mod tests {
         ];
 
         for price in price_vec1 {
-            let id = order_manager.add_new_order(SAddOrder {
+            let _id = order_manager.add_new_order(SAddOrder {
                 action: EOrderAction::Buy,
                 price,
                 quantity: Decimal::from_str("0.01").unwrap(),
             });
         }
-        for (uuid, order) in order_manager.orders.iter_mut() {
+        for (_uuid, order) in order_manager.orders.iter_mut() {
             let asset = SAsset { as_type: EAssetType::Usdt, balance: order.get_amount() };
+            let asset = EAssetUnion::Usdt(asset);
             let _r = order.submit(asset);
         }
 
@@ -186,14 +194,15 @@ mod tests {
         ];
 
         for price in price_vec2 {
-            let id = order_manager.add_new_order(SAddOrder {
+            let _id = order_manager.add_new_order(SAddOrder {
                 action: EOrderAction::Sell,
                 price,
                 quantity: Decimal::from_str("1").unwrap(),
             });
         }
-        for (uuid, order) in order_manager.orders.iter_mut() {
+        for (_uuid, order) in order_manager.orders.iter_mut() {
             let asset = SAsset { as_type: EAssetType::Btc, balance: order.get_quantity() };
+            let asset = EAssetUnion::Btc(asset);
             let _r = order.submit(asset);
         }
 
@@ -204,37 +213,37 @@ mod tests {
     }
     #[test]
     pub fn test_total_asset() {
-        let mut user = get_test_data();
+        let user = get_test_data();
         let total_asset = user.total_asset();
         let usdt = total_asset.get(&EAssetType::Usdt);
         assert!(usdt.is_ok());
-        assert_eq!(usdt.unwrap().balance, Decimal::from(10021));
+        assert_eq!(usdt.unwrap().get_balance(), Decimal::from(10021));
         let btc = total_asset.get(&EAssetType::Btc);
         assert!(btc.is_ok());
-        assert_eq!(btc.unwrap().balance, Decimal::from(6));
+        assert_eq!(btc.unwrap().get_balance(), Decimal::from(6));
     }
 
     #[test]
     pub fn test_locked_asset() {
-        let mut user = get_test_data();
+        let user = get_test_data();
         let locked_assets = user.locked_assets();
         let usdt = locked_assets.get(&EAssetType::Usdt);
         assert!(usdt.is_ok());
-        assert_eq!(usdt.unwrap().balance, Decimal::from(21));
+        assert_eq!(usdt.unwrap().get_balance(), Decimal::from(21));
         let btc = locked_assets.get(&EAssetType::Btc);
         assert!(btc.is_ok());
-        assert_eq!(btc.unwrap().balance, Decimal::from(6));
+        assert_eq!(btc.unwrap().get_balance(), Decimal::from(6));
     }
 
     #[test]
     pub fn test_available_assets() {
-        let mut user = get_test_data();
+        let user = get_test_data();
         let available_assets = user.available_assets();
         let usdt = available_assets.get(&EAssetType::Usdt);
         assert!(usdt.is_ok());
-        assert_eq!(usdt.unwrap().balance, Decimal::from(10000));
+        assert_eq!(usdt.unwrap().get_balance(), Decimal::from(10000));
         let btc = available_assets.get(&EAssetType::Btc);
         assert!(btc.is_ok());
-        assert_eq!(btc.unwrap().balance, Decimal::from(0));
+        assert_eq!(btc.unwrap().get_balance(), Decimal::from(0));
     }
 }

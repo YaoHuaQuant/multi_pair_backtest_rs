@@ -4,19 +4,19 @@ use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::{
-    data_runtime::order::order::SOrder,
     data_source::{
         kline::SKlineUnitData,
         trading_pair::ETradingPairType
     }
 };
 use crate::data_runtime::order::EOrderAction;
+use crate::data_runtime::order::order_v3::SOrderV3;
 
 /// Runner处理K线的结果-订单部分
 #[derive(Debug)]
 pub enum ERunnerParseOrderResult {
     /// 订单已完成
-    OrderExecuted(SOrder),
+    OrderExecuted(SOrderV3),
 }
 
 /// Runner 处理K线的结果
@@ -50,7 +50,7 @@ pub enum EStrategyAction {
 #[derive(Debug)]
 pub enum ERunnerSyncActionResult {
     /// 已完成挂单(关联StrategyOrder的id)
-    OrderPlaced(SOrder, Option<Uuid>),
+    OrderPlaced(SOrderV3, Option<Uuid>),
     ///  已完成撤单
-    OrderCanceled(SOrder),
+    OrderCanceled(SOrderV3),
 }

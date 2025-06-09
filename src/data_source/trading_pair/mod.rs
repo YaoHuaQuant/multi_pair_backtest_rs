@@ -15,7 +15,7 @@ pub enum ETradingPairType {
 }
 
 impl ETradingPairType {
-    pub fn get_base_currency(self) -> EAssetType {
+    pub fn get_base_currency_type(self) -> EAssetType {
         match self {
             ETradingPairType::BtcUsdt => { EAssetType::Btc }
             ETradingPairType::BtcUsdtFuture => { EAssetType::BtcUsdtFuture }
@@ -23,7 +23,7 @@ impl ETradingPairType {
         }
     }
 
-    pub fn get_quote_currency(self) -> EAssetType {
+    pub fn get_quote_currency_type(self) -> EAssetType {
         match self {
             ETradingPairType::BtcUsdt => { EAssetType::Usdt }
             ETradingPairType::BtcUsdtFuture => { EAssetType::Usdt }

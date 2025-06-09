@@ -2,7 +2,7 @@ use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
 use rust_decimal::Decimal;
-use crate::data_runtime::asset::asset::{EAssetV2Error, RemainBalance, RequireBalance, SAsset};
+use crate::data_runtime::asset::asset::{EAssetError, RemainBalance, RequireBalance, SAsset};
 use crate::data_runtime::asset::EAssetType;
 
 pub type RAssetMapResult<T> = Result<T, EAssetMapError>;
@@ -16,11 +16,11 @@ pub enum EAssetMapError {
     AssetTypeInconsistentError(EAssetType, EAssetType, SAsset),
 }
 
-impl From<EAssetV2Error> for EAssetMapError {
-    fn from(value: EAssetV2Error) -> Self {
+impl From<EAssetError> for EAssetMapError {
+    fn from(value: EAssetError) -> Self {
         match value {
-            EAssetV2Error::BalanceNotEnough(a, b) => { Self::BalanceNotEnough(a, b) }
-            EAssetV2Error::AssetTypeInconsistentError(a, b, c) => { Self::AssetTypeInconsistentError(a, b, c) }
+            EAssetError::BalanceNotEnough(a, b) => { Self::BalanceNotEnough(a, b) }
+            EAssetError::AssetTypeInconsistentError(a, b, c) => { Self::AssetTypeInconsistentError(a, b, c) }
         }
     }
 }
@@ -131,11 +131,11 @@ mod tests {
     pub fn test1() {
         let mut manager = SAssetMap::new();
         manager.add_asset_type(EAssetType::Btc);
-        let mut asset1 = manager.get(&EAssetType::Usdt);
+        let asset1 = manager.get(&EAssetType::Usdt);
         assert!(matches!(asset1, Err(EAssetMapError::AssetNotFoundError(EAssetType::Usdt))));
-        let mut asset2 = manager.get_mut(EAssetType::Btc);
+        let asset2 = manager.get_mut(EAssetType::Btc);
         assert!(asset2.is_ok());
-        let mut asset2 = asset2.unwrap();
+        let asset2 = asset2.unwrap();
         assert_eq!(asset2.as_type, EAssetType::Btc);
         assert_eq!(asset2.balance, Decimal::from(0));
 
@@ -152,7 +152,7 @@ mod tests {
     pub fn test_merge() {
         let mut manager = SAssetMap::new();
         manager.add_asset_type(EAssetType::Btc);
-        let mut asset1 = manager.get(&EAssetType::Btc).unwrap();
+        let asset1 = manager.get(&EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(0));
 
         // test merge success
@@ -161,7 +161,7 @@ mod tests {
             balance: Decimal::from(10),
         };
         manager.merge_asset(asset2);
-        let mut asset1 = manager.get(&EAssetType::Btc).unwrap();
+        let asset1 = manager.get(&EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(10));
 
 
@@ -180,7 +180,7 @@ mod tests {
     pub fn test_split() {
         let mut manager = SAssetMap::new();
         manager.add_asset_type(EAssetType::Btc);
-        let mut asset1 = manager.get(&EAssetType::Btc).unwrap();
+        let asset1 = manager.get(&EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(0));
 
         // test merge success
@@ -189,7 +189,7 @@ mod tests {
             balance: Decimal::from(10),
         };
         manager.merge_asset(asset2);
-        let mut asset1 = manager.get(&EAssetType::Btc).unwrap();
+        let asset1 = manager.get(&EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(10));
 
 
@@ -198,14 +198,14 @@ mod tests {
         assert_eq!(asset3.as_type, EAssetType::Btc);
         assert_eq!(asset3.balance, Decimal::from(1));
 
-        let mut asset1 = manager.get(&EAssetType::Btc).unwrap();
+        let asset1 = manager.get(&EAssetType::Btc).unwrap();
         assert_eq!(asset1.balance, Decimal::from(9));
 
         // test split fail
         let asset4 = manager.split(EAssetType::Usdt, Decimal::from(1));
         assert!(asset4.is_err());
         let as_type = EAssetType::Usdt;
-        assert!(matches!(asset4, Err(EAssetMapError::AssetNotFoundError(as_type))));
+        assert!(matches!(asset4, Err(EAssetMapError::AssetNotFoundError(_as_type))));
         if let Err(EAssetMapError::AssetNotFoundError(a)) = asset4 {
             assert_eq!(a, as_type);
         }

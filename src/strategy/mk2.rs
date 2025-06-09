@@ -16,11 +16,9 @@ use crate::{
     data_runtime::{
         asset::{
             asset::SAsset,
-            asset_map::SAssetMap,
         },
         order::{
             EOrderAction,
-            trading_pair_order_manager_map::STradingPairOrderManagerMap,
         },
     },
     data_source::trading_pair::ETradingPairType,
@@ -32,7 +30,10 @@ use crate::{
 };
 use crate::config::{fee::MAKER_ORDER_FEE, SDebugConfig};
 use crate::config::trading_pair::btc_usdt::TRADDING_PAIR_USDT_MIN_QUANTITY;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::{EOrderDirection, EOrderPosition};
+use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
 use crate::strategy::logger::SStrategyLogger;
 use crate::strategy::order::order::{EStrategyOrderState, SStrategyOrder};
 use crate::strategy::order::order_manager::SStrategyOrderManager;
@@ -264,10 +265,10 @@ impl SStrategyMk2 {
 impl TStrategy for SStrategyMk2 {
     fn run(
         &mut self,
-        tp_order_map: &mut STradingPairOrderManagerMap,
-        available_assets: &mut SAssetMap,
+        tp_order_map: &mut STradingPairOrderManagerMapV3,
+        available_assets: &mut SAssetMapV3,
         runner_parse_result: SRunnerParseKlineResult,
-        debug_config: &SDebugConfig,
+        _debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let mut result = Vec::new();
         let SRunnerParseKlineResult {
@@ -276,7 +277,7 @@ impl TStrategy for SStrategyMk2 {
             new_funding_rate: _,
             order_result
         } = runner_parse_result;
-        let mut strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
+        let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();
         // 1. 从runner获取order的执行情况，将成功执行的order进行记录。
 
         // debug!("self.opening_orders lens before ParseOrderResult :{:?}", self.opening_and_closing_orders.len());
@@ -341,13 +342,13 @@ impl TStrategy for SStrategyMk2 {
         let locked_assets = tp_order_map
             .calculate_total_assets();
         let total_assets = available_assets.clone() + locked_assets;
-        let tmp_base_asset = SAsset { as_type: tp_type.get_base_currency(), balance: Decimal::from(0) };
-        let tmp_quote_asset = SAsset { as_type: tp_type.get_quote_currency(), balance: Decimal::from(0) };
+        let tmp_base_asset = EAssetUnion::from(SAsset { as_type: tp_type.get_base_currency_type(), balance: Decimal::from(0) });
+        let tmp_quote_asset = EAssetUnion::from(SAsset { as_type: tp_type.get_quote_currency_type(), balance: Decimal::from(0) });
         let assets_base = total_assets
-            .get(&tp_type.get_base_currency())
+            .get(&tp_type.get_base_currency_type())
             .unwrap_or(&tmp_base_asset);
         let assets_quote = total_assets
-            .get(&tp_type.get_quote_currency())
+            .get(&tp_type.get_quote_currency_type())
             .unwrap_or(&tmp_quote_asset);
         // todo 只做多
         let direction = EOrderDirection::Long;
@@ -357,11 +358,11 @@ impl TStrategy for SStrategyMk2 {
         // 价格
         let mut price = new_kline.close_price;
         // 基础货币量
-        let mut base_quantity = assets_base.balance;
+        let mut base_quantity = assets_base.get_balance();
         // 计价货币量
-        let mut quote_quantity = assets_quote.balance;
+        let mut quote_quantity = assets_quote.get_balance();
         // 实际仓位占比
-        let mut position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+        let _position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         // 截止价格
         let mut cut_off_price = price * (Decimal::from(1) + self.cut_off_price_percentage);
 
@@ -433,9 +434,9 @@ impl TStrategy for SStrategyMk2 {
         // 3.3 循环计算买单
         // 重置数据
         price = new_kline.close_price;
-        base_quantity = assets_base.balance;
-        quote_quantity = assets_quote.balance;
-        position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
+        base_quantity = assets_base.get_balance();
+        quote_quantity = assets_quote.get_balance();
+        // position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         cut_off_price = price * (Decimal::from(1) - self.cut_off_price_percentage);
         position = EOrderPosition::Open;
         action = EOrderAction::Buy;
@@ -455,7 +456,7 @@ impl TStrategy for SStrategyMk2 {
                     break;
                 }
                 Some(SNextOrderFormat {
-                         id: id,
+                         id,
                          price: order_price,
                          quantity: order_quantity,
                          base_quantity: new_base_quantity,
@@ -486,7 +487,7 @@ impl TStrategy for SStrategyMk2 {
         &mut self,
         tp_type: &ETradingPairType,
         parse_action_results: Vec<ERunnerSyncActionResult>,
-        debug_config: &SDebugConfig,
+        _debug_config: &SDebugConfig,
     ) {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
         let strategy_order_manager = self.strategy_order_map.get_mut(&tp_type).unwrap();

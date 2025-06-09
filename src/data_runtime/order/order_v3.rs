@@ -1,6 +1,7 @@
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::data_runtime::asset::asset::SAsset;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::order::EOrderAction;
 
@@ -24,7 +25,7 @@ pub enum EOrderState {
     Unknown,
 }
 
-pub type ROrderResult<T> = Result<T, EOrderError>;
+pub type ROrderV3Result<T> = Result<T, EOrderV3Error>;
 
 pub type PriceDecimal = Decimal;
 pub type QuantityDecimal = Decimal;
@@ -34,15 +35,15 @@ pub type ActualState = EOrderState;
 
 /// 订单管理器异常
 #[derive(Debug)]
-pub enum EOrderError {
+pub enum EOrderV3Error {
     /// 状态校验错误
     StateVerificationError(ExpectedState, ActualState),
     /// 提供的Asset的资产量小于所需的资产量 将资产返回
-    AssetQuantityNotEnoughError(EAssetType, RequiredQuantityDecimal, QuantityDecimal, SAsset),
+    AssetQuantityNotEnoughError(EAssetType, RequiredQuantityDecimal, QuantityDecimal, EAssetUnion),
     /// 未锁定Asset
-    LockedAssetNotExistError(SOrder),
+    LockedAssetNotExistError(SOrderV3),
     /// 成交了一个已存在fee asset的订单
-    ExecuteOrderWithFeeAssetError(SOrder),
+    ExecuteOrderWithFeeAssetError(SOrderV3),
 }
 
 
@@ -56,7 +57,7 @@ pub enum EOrderUpdate {
 
 /// 策略执行器订单
 #[derive(Debug, Clone)]
-pub struct SOrder {
+pub struct SOrderV3 {
     id: Uuid,
     /// 订单状态
     state: EOrderState,
@@ -69,7 +70,7 @@ pub struct SOrder {
     /// 挂单金额（计价资产）
     amount: Decimal,
     /// 锁定的资产对象（买单锁定计价资产 卖单锁定基础资产）
-    locked_asset: Option<SAsset>,
+    locked_asset: Option<EAssetUnion>,
     /// 已支付的fee资产对象（只有Executed状态的Order能够持有此对象）
     paid_fee_asset: Option<SAsset>,
 }
@@ -89,9 +90,9 @@ pub struct SAddOrder {
 //     }
 // }
 
-impl SOrder {
+impl SOrderV3 {
     pub fn new(price: Decimal, quantity: Decimal, action: EOrderAction) -> Self {
-        SOrder {
+        SOrderV3 {
             id: Uuid::new_v4(),
             state: Default::default(),
             action,
@@ -130,10 +131,10 @@ impl SOrder {
     }
 
     /// 状态校验
-    fn state_check(&self, expected_state: ExpectedState) -> ROrderResult<()> {
+    fn state_check(&self, expected_state: ExpectedState) -> ROrderV3Result<()> {
         if self.state != expected_state {
             // 状态校验失败
-            Err(EOrderError::StateVerificationError(expected_state, self.state))
+            Err(EOrderV3Error::StateVerificationError(expected_state, self.state))
         } else {
             Ok(())
         }
@@ -141,16 +142,17 @@ impl SOrder {
 
     /// 提交订单 绑定资产
     /// 允许绑定高于订单所需的资产量
-    pub fn submit(&mut self, asset: SAsset) -> ROrderResult<()> {
+    pub fn submit(&mut self, asset: EAssetUnion) -> ROrderV3Result<()> {
         // 状态校验
         self.state_check(EOrderState::Pending)?;
         // 校验资产量
+        let balance = asset.get_balance();
         if match self.action {
-            EOrderAction::Buy => { asset.balance < self.amount }
-            EOrderAction::Sell => { asset.balance < self.quantity }
+            EOrderAction::Buy => { balance < self.amount }
+            EOrderAction::Sell => { balance < self.quantity }
         } {
             // 资产不足
-            Err(EOrderError::AssetQuantityNotEnoughError(asset.as_type, self.amount, asset.balance, asset))
+            Err(EOrderV3Error::AssetQuantityNotEnoughError(asset.get_asset_type(), self.amount, balance, asset))
         } else {
             // 资产充足
             self.locked_asset = Some(asset);
@@ -162,22 +164,22 @@ impl SOrder {
     /// 订单成交
     /// 返回已锁定的资产
     /// 绑定手续费资产
-    pub fn execute(&mut self, paid_fee_asset: Option<SAsset>) -> ROrderResult<SAsset> {
+    pub fn execute(&mut self, paid_fee_asset: Option<SAsset>) -> ROrderV3Result<EAssetUnion> {
         // 状态校验
         self.state_check(EOrderState::Unfulfilled)?;
         match &self.paid_fee_asset {
             Some(_) => {
-                Err(EOrderError::ExecuteOrderWithFeeAssetError(self.clone()))
+                Err(EOrderV3Error::ExecuteOrderWithFeeAssetError(self.clone()))
             }
             None => {
                 match self.locked_asset.take() {
-                    None => { Err(EOrderError::LockedAssetNotExistError(self.clone())) }
+                    None => { Err(EOrderV3Error::LockedAssetNotExistError(self.clone())) }
                     Some(asset) => {
                         self.state = EOrderState::Executed;
                         self.paid_fee_asset = Some(match paid_fee_asset {
                             None => {
                                 SAsset {
-                                    as_type: asset.as_type,
+                                    as_type: asset.get_asset_type(),
                                     balance: Decimal::from(0),
                                 }
                             }
@@ -192,7 +194,7 @@ impl SOrder {
 
     /// 订单取消
     /// 释放已锁定的资产
-    pub fn cancel(&mut self) -> Option<SAsset> {
+    pub fn cancel(&mut self) -> Option<EAssetUnion> {
         self.state = EOrderState::Canceled;
         self.locked_asset.take()
     }
@@ -222,7 +224,7 @@ impl SOrder {
         self.amount
     }
 
-    pub fn get_locked_asset(&self) -> &Option<SAsset> {
+    pub fn get_locked_asset(&self) -> &Option<EAssetUnion> {
         &self.locked_asset
     }
 
@@ -240,21 +242,23 @@ impl SOrder {
 mod tests {
     use rust_decimal::prelude::*;
     use crate::data_runtime::asset::asset::SAsset;
+    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
-    use crate::data_runtime::order::order::{EOrderError, EOrderState, EOrderUpdate, SOrder};
+    use crate::data_runtime::order::order_v3::{EOrderV3Error, EOrderState, EOrderUpdate, SOrderV3};
 
-    fn get_pending_data() -> SOrder {
+    fn get_pending_data() -> SOrderV3 {
         let price = Decimal::from_str("3.1415926").unwrap();
         let quantity = Decimal::from_str("10.0").unwrap();
-        SOrder::new_buy_order(price, quantity)
+        SOrderV3::new_buy_order(price, quantity)
     }
 
-    fn get_unfulfilled_data() -> SOrder {
+    fn get_unfulfilled_data() -> SOrderV3 {
         let mut order = get_pending_data();
         let asset = SAsset {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("31.4159260").unwrap(),
         };
+        let asset = EAssetUnion::Usdt(asset);
         let _ = order.submit(asset).unwrap();
         order
     }
@@ -297,10 +301,11 @@ mod tests {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("10").unwrap(),
         };
+        let asset = EAssetUnion::Usdt(asset);
         let r = order.submit(asset);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::StateVerificationError(_,_))));
-        if let Err(EOrderError::StateVerificationError(a, b)) = r {
+        assert!(matches!(r, Err(EOrderV3Error::StateVerificationError(_,_))));
+        if let Err(EOrderV3Error::StateVerificationError(a, b)) = r {
             assert_eq!(a, EOrderState::Pending);
             assert_eq!(b, EOrderState::Executed);
         }
@@ -313,17 +318,21 @@ mod tests {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("10").unwrap(),
         };
+        let asset = EAssetUnion::Usdt(asset);
         println!("before:{:?}", order);
         let r = order.submit(asset);
         println!("after:{:?}", order);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::AssetQuantityNotEnoughError(_,_, _, _))));
-        if let Err(EOrderError::AssetQuantityNotEnoughError(_o, a, b, c)) = r {
+        assert!(matches!(r, Err(EOrderV3Error::AssetQuantityNotEnoughError(_,_, _, _))));
+        if let Err(EOrderV3Error::AssetQuantityNotEnoughError(_o, a, b, c)) = r {
             assert_eq!(a, Decimal::from_str("31.415926").unwrap());
             assert_eq!(b, Decimal::from_str("10").unwrap());
-            let SAsset { as_type, balance } = c;
-            assert_eq!(as_type, EAssetType::Usdt);
-            assert_eq!(balance, Decimal::from_str("10").unwrap());
+            assert!(matches!(c, EAssetUnion::Usdt(_)));
+            if let EAssetUnion::Usdt(asset) = c {
+                let SAsset { as_type, balance } = asset;
+                assert_eq!(as_type, EAssetType::Usdt);
+                assert_eq!(balance, Decimal::from_str("10").unwrap());
+            }
         }
     }
 
@@ -334,6 +343,7 @@ mod tests {
             as_type: EAssetType::Usdt,
             balance: Decimal::from_str("50").unwrap(),
         };
+        let asset = EAssetUnion::Usdt(asset);
         println!("before:{:?}", order);
         let r = order.submit(asset);
         println!("after:{:?}", order);
@@ -345,8 +355,8 @@ mod tests {
         let mut order = get_pending_data();
         let r = order.execute(None);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::StateVerificationError(_,_))));
-        if let Err(EOrderError::StateVerificationError(a, b)) = r {
+        assert!(matches!(r, Err(EOrderV3Error::StateVerificationError(_,_))));
+        if let Err(EOrderV3Error::StateVerificationError(a, b)) = r {
             assert_eq!(a, EOrderState::Unfulfilled);
             assert_eq!(b, EOrderState::Pending);
         }
@@ -358,7 +368,7 @@ mod tests {
         order.locked_asset = None;
         let r = order.execute(None);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::LockedAssetNotExistError(_))));
+        assert!(matches!(r, Err(EOrderV3Error::LockedAssetNotExistError(_))));
     }
 
     #[test]
@@ -367,7 +377,7 @@ mod tests {
         order.paid_fee_asset = Some(SAsset { as_type: EAssetType::Usdt, balance: Decimal::from(1) });
         let r = order.execute(None);
         assert!(r.is_err());
-        assert!(matches!(r, Err(EOrderError::ExecuteOrderWithFeeAssetError(_))));
+        assert!(matches!(r, Err(EOrderV3Error::ExecuteOrderWithFeeAssetError(_))));
     }
 
     #[test]
@@ -375,9 +385,11 @@ mod tests {
         let mut order = get_unfulfilled_data();
         let r = order.execute(None);
         assert!(r.is_ok());
-        let SAsset { as_type, balance } = r.unwrap();
-        assert_eq!(as_type, EAssetType::Usdt);
-        assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
+        if let EAssetUnion::Usdt(asset) = r.unwrap() {
+            let SAsset { as_type, balance } = asset;
+            assert_eq!(as_type, EAssetType::Usdt);
+            assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
+        }
     }
 
     #[test]
@@ -385,9 +397,11 @@ mod tests {
         let mut order = get_unfulfilled_data();
         let r = order.cancel();
         assert!(r.is_some());
-        let SAsset { as_type, balance } = r.unwrap();
-        assert_eq!(as_type, EAssetType::Usdt);
-        assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
+        if let EAssetUnion::Usdt(asset) = r.unwrap() {
+            let SAsset { as_type, balance } = asset;
+            assert_eq!(as_type, EAssetType::Usdt);
+            assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
+        }
     }
 
     #[test]

@@ -3,13 +3,12 @@ use chrono::{DateTime, Local};
 use log::{debug, error, info};
 use rust_decimal::Decimal;
 use uuid::Uuid;
-use crate::{config, data_runtime::{
+use crate::{data_runtime::{
     asset::{
         asset::SAsset,
         EAssetType,
     },
     order::EOrderAction,
-    order::order::{SOrder},
 }, data_source::{
     data_manager::SDataManager,
     db::api::TDataApi,
@@ -20,8 +19,9 @@ use crate::{config, data_runtime::{
     TRunner,
 }, strategy::TStrategy};
 use crate::config::back_trade_period::SAMPLE_PERIOD;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
+use crate::data_runtime::order::order_v3::SOrderV3;
 use crate::data_runtime::user::SUser;
-use crate::data_source::trading_pair::trading_pair_map::RTradingPairManagerResult;
 use crate::protocol::SStrategyOrderAdd;
 use crate::runner::logger::data_logger::SDataLogger;
 use crate::runner::logger::kline_unit::SDataLogKlineUnit;
@@ -240,8 +240,8 @@ impl<D: TDataApi> SBackTradeRunner<D> {
     {
         // 根据K线 结算订单数据 结算资产数据
         let mut order_results: Vec<ERunnerParseOrderResult> = Vec::new(); // 订单已成交列表
-        let base_asset_type = tp_type.get_base_currency();
-        let quote_asset_type = tp_type.get_quote_currency();
+        let base_asset_type = tp_type.get_base_currency_type();
+        let quote_asset_type = tp_type.get_quote_currency_type();
         let maker_order_fee = self.config.maker_order_fee;
         let user_asset_manager = &mut user.available_assets;
         let order_manager = user.tp_order_map.get_mut(tp_type).unwrap();
@@ -270,10 +270,10 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             let base_quantity = order.get_quantity();
             let quote_quantity = order.get_amount();
             // 计算手续费(计价资产)
-            let fee_quote_asset = SAsset {
+            let fee_quote_asset = EAssetUnion::from(SAsset {
                 as_type: quote_asset_type,
                 balance: quote_quantity * maker_order_fee,
-            };
+            });
             // 计算手续费(USDT计价)
             let fee_usdt = SAsset {
                 as_type: EAssetType::Usdt,
@@ -285,10 +285,10 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
                 Ok(_consumed_quote_asset) => {
                     // 用户获得基础资产
-                    let obtain_base_asset = SAsset {
+                    let obtain_base_asset = EAssetUnion::from(SAsset {
                         as_type: base_asset_type,
                         balance: base_quantity - base_quantity * maker_order_fee,
-                    };
+                    });
 
                     if debug_config.is_debug {
                         debug!("结算买单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
@@ -319,10 +319,10 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             let mut order = order_manager.pop_lowest_sell_order().unwrap().unwrap();
             let base_quantity = order.get_quantity();
             // 计算手续费(基础资产)
-            let fee_base_asset = SAsset {
+            let fee_base_asset = EAssetUnion::from(SAsset {
                 as_type: base_asset_type,
                 balance: base_quantity * maker_order_fee,
-            };
+            });
             // 计算手续费(USDT计价)
             let fee_usdt = SAsset {
                 as_type: EAssetType::Usdt,
@@ -335,10 +335,10 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                 // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
                 Ok(_consumed_base_asset) => {
                     // 用户获得计价资产
-                    let obtain_quote_asset = SAsset {
+                    let obtain_quote_asset = EAssetUnion::from(SAsset {
                         as_type: quote_asset_type,
                         balance: quote_quantity - quote_quantity * maker_order_fee,
-                    };
+                    });
 
                     if debug_config.is_debug {
                         debug!("结算卖单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_base_asset, &obtain_quote_asset, &_consumed_base_asset);
@@ -377,8 +377,8 @@ impl<D: TDataApi> SBackTradeRunner<D> {
     {
         let user_asset_manager = &mut user.available_assets;
         let order_manager = user.tp_order_map.get_mut(tp_type).unwrap();
-        let base_asset_type = tp_type.get_base_currency();
-        let quote_asset_type = tp_type.get_quote_currency();
+        let base_asset_type = tp_type.get_base_currency_type();
+        let quote_asset_type = tp_type.get_quote_currency_type();
 
 
         // 根据策略行为，校验、调整订单数据。
@@ -429,7 +429,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
         for add_order in add_orders {
             // info!("Start: add_order");
             // info!("add_order:{:?}", add_order);
-            let mut new_order = SOrder::new(add_order.price, add_order.quantity, add_order.action);
+            let mut new_order = SOrderV3::new(add_order.price, add_order.quantity, add_order.action);
             let (necessary_asset_quantity, user_asset) = match add_order.action {
                 EOrderAction::Buy => {
                     (add_order.price * add_order.quantity, user_asset_manager.get_mut(quote_asset_type).unwrap())
@@ -440,22 +440,18 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             };
             // info!("necessary_asset_quantity:{:?}", necessary_asset_quantity);
             // match user_asset.split(necessary_asset_quantity) {
-            match user_asset.split_allow_negative(necessary_asset_quantity) {
-                Ok(locked_quote_asset) => {
-                    // info!("locked_quote_asset:{:?}", locked_quote_asset);
-                    if let Err(e) = new_order.submit(locked_quote_asset) {
-                        error!("Error: {:?}", e);
-                    }
-
-                    if debug_config.is_debug { debug!("新增订单: {:?}", &new_order); }
-
-                    if let Err(e) = order_manager.insert_order(new_order.clone()) {
-                        error!("Error: {:?}", e);
-                    }
-                    parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order, add_order.id));
-                }
-                Err(e) => { error!("{:?}", e) }
+            let locked_quote_asset = user_asset.split_allow_negative(necessary_asset_quantity);
+            // info!("locked_quote_asset:{:?}", locked_quote_asset);
+            if let Err(e) = new_order.submit(locked_quote_asset) {
+                error!("Error: {:?}", e);
             }
+
+            if debug_config.is_debug { debug!("新增订单: {:?}", &new_order); }
+
+            if let Err(e) = order_manager.insert_order(new_order.clone()) {
+                error!("Error: {:?}", e);
+            }
+            parse_action_result.push(ERunnerSyncActionResult::OrderPlaced(new_order, add_order.id));
             // info!("Finish: add_order");
         }
         parse_action_result

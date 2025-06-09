@@ -45,9 +45,10 @@ use rust_decimal::prelude::FromPrimitive;
 use uuid::Uuid;
 use crate::config::{SDebugConfig, trading_pair::btc_usdt::TRADDING_PAIR_BTC_USDT_MIN_QUANTITY};
 use crate::data_runtime::asset::asset::SAsset;
-use crate::data_runtime::asset::asset_map::SAssetMap;
+use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::EOrderAction;
-use crate::data_runtime::order::trading_pair_order_manager_map::STradingPairOrderManagerMap;
+use crate::data_runtime::order::trading_pair_order_manager_map_v3::STradingPairOrderManagerMapV3;
 use crate::data_source::trading_pair::ETradingPairType;
 use crate::protocol::{ERunnerParseOrderResult, ERunnerSyncActionResult, EStrategyAction, SRunnerParseKlineResult, SStrategyOrderAdd};
 use crate::strategy::logger::SStrategyLogger;
@@ -86,10 +87,10 @@ impl Default for SStrategyMk1 {
 impl TStrategy for SStrategyMk1 {
     fn run(
         &mut self,
-        tp_order_map: &mut STradingPairOrderManagerMap,
-        available_assets: &mut SAssetMap,
+        tp_order_map: &mut STradingPairOrderManagerMapV3,
+        available_assets: &mut SAssetMapV3,
         runner_parse_result: SRunnerParseKlineResult,
-        debug_config: &SDebugConfig,
+        _debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
         let mut result = Vec::new();
         // 1. 从runner获取order的执行情况，将成功执行的order进行记录。
@@ -117,20 +118,22 @@ impl TStrategy for SStrategyMk1 {
         let locked_assets = tp_order_map
             .calculate_total_assets();
         let total_assets = available_assets.clone() + locked_assets;
-        let tmp_base_asset = SAsset { as_type: tp_type.get_base_currency(), balance: Decimal::from(0) };
-        let tmp_quote_asset = SAsset { as_type: tp_type.get_quote_currency(), balance: Decimal::from(0) };
+        let tmp_base_asset = SAsset { as_type: tp_type.get_base_currency_type(), balance: Decimal::from(0) };
+        let tmp_base_asset = EAssetUnion::from(tmp_base_asset);
+        let tmp_quote_asset = SAsset { as_type: tp_type.get_quote_currency_type(), balance: Decimal::from(0) };
+        let tmp_quote_asset = EAssetUnion::from(tmp_quote_asset);
         let assets_base = total_assets
-            .get(&tp_type.get_base_currency())
+            .get(&tp_type.get_base_currency_type())
             .unwrap_or(&tmp_base_asset);
         let assets_quote = total_assets
-            .get(&tp_type.get_quote_currency())
+            .get(&tp_type.get_quote_currency_type())
             .unwrap_or(&tmp_quote_asset);
         // 价格
         let price = new_kline.close_price;
         // 基础货币量
-        let base_quantity = assets_base.balance;
+        let base_quantity = assets_base.get_balance();
         // 计价货币量
-        let quote_quantity = assets_quote.balance;
+        let quote_quantity = assets_quote.get_balance();
         // 实际仓位占比
         let actual_position_ratio = base_quantity * price / (base_quantity * price + quote_quantity);
         // 目标仓位占比
@@ -189,7 +192,7 @@ impl TStrategy for SStrategyMk1 {
         tmp_price = price;
         tmp_base_quantity = base_quantity;
         tmp_quote_quantity = quote_quantity;
-        tmp_quantity = const_quantity_min;
+        // tmp_quantity = const_quantity_min;
         while tmp_price > cut_off_buy_price {
             // info!("仓位:{:.2?}%\t订单价格:{:?}\tbase:{:?}\tquote:{:?}\tquantity:{:?}",tmp_position_ratio*Decimal::from(100), tmp_price, tmp_base_quantity, tmp_quote_quantity, tmp_quantity);
             if tmp_position_ratio > target_position_ratio {
@@ -230,9 +233,9 @@ impl TStrategy for SStrategyMk1 {
 
     fn verify(
         &mut self,
-        tp_type: &ETradingPairType,
+        _tp_type: &ETradingPairType,
         parse_action_results: Vec<ERunnerSyncActionResult>,
-        debug_config: &SDebugConfig,
+        _debug_config: &SDebugConfig,
     ) {
         // 5. 根据runner反馈情况，将成功挂单的order进行记录。
         for result in parse_action_results {
