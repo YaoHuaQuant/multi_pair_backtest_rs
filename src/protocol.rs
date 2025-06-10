@@ -47,18 +47,17 @@ pub mod strategy_order {
         pub price: Decimal,
         /// 基础货币量
         pub base_quantity: Decimal,
-        
+
         /// 保证金量
         /// 购买现货时 保证金量=基础货币量*价格
         /// 购买杠杆资产时 只要保证 保证金量>0即可
-        pub margin_quantity:Decimal,
+        pub margin_quantity: Decimal,
     }
 
     impl SStrategyOrderAdd {
-        pub fn new(
+        pub fn new_long_open(
             id: Option<Uuid>,
             tp_type: ETradingPairType,
-            action: EOrderAction,
             price: Decimal,
             base_quantity: Decimal,
             margin_quantity: Decimal,
@@ -66,9 +65,59 @@ pub mod strategy_order {
             Self {
                 id,
                 tp_type,
-                action,
+                action: EOrderAction::Buy,
                 price,
                 base_quantity,
+                margin_quantity,
+            }
+        }
+        pub fn new_long_close(
+            id: Option<Uuid>,
+            tp_type: ETradingPairType,
+            price: Decimal,
+            base_quantity: Decimal,
+            margin_quantity: Decimal,
+        ) -> Self {
+            Self {
+                id,
+                tp_type,
+                action: EOrderAction::Sell,
+                price,
+                base_quantity,
+                margin_quantity,
+            }
+        }
+
+        pub fn new_short_open(
+            id: Option<Uuid>,
+            tp_type: ETradingPairType,
+            price: Decimal,
+            base_quantity: Decimal,
+            margin_quantity: Decimal,
+        ) -> Self {
+            Self {
+                id,
+                tp_type,
+                action: EOrderAction::Buy,
+                price,
+                base_quantity: -base_quantity,
+                margin_quantity,
+            }
+        }
+
+        pub fn new_short_close(
+            id: Option<Uuid>,
+            tp_type: ETradingPairType,
+            price: Decimal,
+            base_quantity: Decimal,
+            margin_quantity: Decimal,
+        ) -> Self {
+            Self {
+                id,
+                tp_type,
+                action: EOrderAction::Sell,
+                price,
+                base_quantity: -base_quantity,
                 margin_quantity,
             }
         }

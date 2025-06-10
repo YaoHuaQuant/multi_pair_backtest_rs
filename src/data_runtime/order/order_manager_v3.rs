@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::asset::asset_map_v3::SAssetMapV3;
+use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::EOrderAction;
 use crate::data_runtime::order::order_v3::{EOrderState, SAddOrder, SOrderV3};
 use crate::data_source::trading_pair::ETradingPairType;
@@ -214,7 +215,7 @@ impl SOrderManagerV3 {
         let mut result = SAssetMapV3::new();
         for (_, order) in self.orders.iter() {
             if let Some(asset) = order.get_locked_asset() {
-                result.merge_asset(asset.clone())
+                result.merge_asset(EAssetUnion::from(asset.clone()))
             }
         }
         result
@@ -469,12 +470,10 @@ mod tests {
                 as_type: EAssetType::Btc,
                 balance: Decimal::from(price),
             };
-            let _r = order.submit(asset);
+            let r = order.submit(asset);
+            assert!(r.is_ok())
         }
-        dbg!(&manager);
-
         let r1 = manager.calculate_total_assets();
-        println!("result:{:?}", r1);
         let btc = r1.get(&EAssetType::Btc);
         assert!(btc.is_ok());
         assert_eq!(btc.unwrap().get_balance(), Decimal::from(33));

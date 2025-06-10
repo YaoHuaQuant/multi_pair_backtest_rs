@@ -112,7 +112,7 @@ impl EAssetUnion {
         }
     }
 
-    pub fn split_allow_negative(&mut self, balance: Decimal) -> Self{
+    pub fn split_allow_negative(&mut self, balance: Decimal) -> Self {
         match self {
             EAssetUnion::Usdt(asset) => {
                 EAssetUnion::Usdt(asset.split_allow_negative(balance))
@@ -128,7 +128,7 @@ impl EAssetUnion {
             }
         }
     }
-    
+
     pub fn get_balance(&self) -> Decimal {
         match self {
             EAssetUnion::Usdt(asset) | EAssetUnion::Btc(asset) => {
@@ -153,12 +153,12 @@ impl AddAssign for EAssetUnion {
 impl From<SAsset> for EAssetUnion {
     fn from(value: SAsset) -> Self {
         match value.as_type.clone() {
-            EAssetType::Usdt => {Self::Usdt(value)}
-            EAssetType::Btc => {Self::Btc(value)}
+            EAssetType::Usdt => { Self::Usdt(value) }
+            EAssetType::Btc => { Self::Btc(value) }
             _ => {
                 // debug 该分支为异常情况
-                error!("impl From<SAsset> for EAssetUnion");
-                Self::Usdt(SAsset{ as_type: EAssetType::Usdt, balance: Default::default() })
+                error!("impl From<SAsset> for EAssetUnion: {:?}",value );
+                Self::Usdt(SAsset { as_type: EAssetType::Usdt, balance: Default::default() })
             }
         }
     }
@@ -167,15 +167,15 @@ impl From<SAsset> for EAssetUnion {
 impl From<SAssetLeveraged> for EAssetUnion {
     fn from(value: SAssetLeveraged) -> Self {
         match value.get_base().as_type.clone() {
-            EAssetType::BtcUsdtFuture => {Self::BtcUsdCmFuture(value)}
-            EAssetType::BtcUsdCmFuture => {Self::BtcUsdCmFuture(value)}
+            EAssetType::BtcUsdtFuture => { Self::BtcUsdCmFuture(value) }
+            EAssetType::BtcUsdCmFuture => { Self::BtcUsdCmFuture(value) }
             _ => {
                 // debug 该分支为异常情况
-                error!("impl From<SAsset> for EAssetUnion");
+                error!("impl From<SAssetLeveraged> for EAssetUnion: {:?}",value);
                 Self::BtcUsdtFuture(SAssetLeveraged::new(
                     ETradingPairType::BtcUsdt,
                     Decimal::default(),
-                    SAsset{ as_type: EAssetType::Usdt, balance: Default::default() },
+                    SAsset { as_type: EAssetType::Usdt, balance: Default::default() },
                     Decimal::default(),
                 ).unwrap())
             }

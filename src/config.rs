@@ -58,15 +58,15 @@ pub mod back_trade_period {
     // 起始价格 100066.44 结束价格100009.02
     // 最高价格 102160.43 最低价格 97808.1
     
-    /// 回测起始日期
-    pub fn config_date_from() -> DateTime<Local> {
-        Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 27).expect("无效的日期"), NaiveTime::from_hms_opt(13, 40, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
-    }
-    
-    /// 回测结束日期
-    pub fn config_date_to() -> DateTime<Local> {
-        Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 28).expect("无效的日期"), NaiveTime::from_hms_opt(4, 22, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
-    }
+    // /// 回测起始日期
+    // pub fn config_date_from() -> DateTime<Local> {
+    //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 27).expect("无效的日期"), NaiveTime::from_hms_opt(13, 40, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    // }
+    // 
+    // /// 回测结束日期
+    // pub fn config_date_to() -> DateTime<Local> {
+    //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 28).expect("无效的日期"), NaiveTime::from_hms_opt(4, 22, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    // }
 
     // 回测配置2（震荡走势 周期2个月）
     // 回测周期(东八区)'2024-12-06 03:43:00' and '2025-02-04 13:01:00'
@@ -85,15 +85,15 @@ pub mod back_trade_period {
 
     // 回测配置3（Debug用）
 
-    // /// 回测起始日期
-    // pub fn config_date_from() -> DateTime<Local> {
-    //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 1).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
-    // }
-    //
-    // /// 回测结束日期
-    // pub fn config_date_to() -> DateTime<Local> {
-    //     Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2025, 1, 5).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
-    // }
+    /// 回测起始日期
+    pub fn config_date_from() -> DateTime<Local> {
+        Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2020, 1, 1).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    }
+    
+    /// 回测结束日期
+    pub fn config_date_to() -> DateTime<Local> {
+        Local.from_local_datetime(&NaiveDateTime::new(NaiveDate::from_ymd_opt(2020, 1, 5).expect("无效的日期"), NaiveTime::from_hms_opt(00, 00, 0).expect("无效的时间"))).single().expect("无法转换为本地时间")
+    }
 
     // 回测配置4（单边上涨 周期6天）
     // 回测周期(东八区)'2025-01-13 14:30:00' and '2025-01-20 05:18:00'

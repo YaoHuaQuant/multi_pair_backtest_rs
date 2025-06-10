@@ -1,11 +1,12 @@
 use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
+use log::{error, info};
 use rust_decimal::Decimal;
 use crate::data_runtime::asset::asset::{EAssetError, RemainBalance, RequireBalance};
 use crate::data_runtime::asset::asset_union::{EAssetUnion, EAssetUnionError};
 use crate::data_runtime::asset::EAssetType;
-
+use crate::data_source::trading_pair::ETradingPairType;
 
 pub type RAssetMapV3Result<T> = Result<T, EAssetMapV3Error>;
 
@@ -108,6 +109,30 @@ impl SAssetMapV3 {
     pub fn iter(&self) -> Iter<'_, EAssetType, EAssetUnion> {
         self.inner.iter()
     }
+
+    /// 将杠杆资产的数值（计价资产量）进行重新调整
+    pub fn update_leveraged(&mut self, trading_pair_prices: &HashMap<ETradingPairType, Decimal>) {
+        for (tp_type, price) in trading_pair_prices {
+            let as_type = match tp_type {
+                ETradingPairType::BtcUsdt => { None } // 现货无需调整
+                ETradingPairType::BtcUsdtFuture => { Some(EAssetType::BtcUsdtFuture) }
+                ETradingPairType::BtcUsdCmFuture => { Some(EAssetType::BtcUsdCmFuture) }
+            };
+            if let Some(as_type) = as_type {
+                match self.get_mut(as_type) {
+                    Err(e) => { error!("{:?}", e) }
+                    Ok(asset_union) => {
+                        match asset_union {
+                            EAssetUnion::BtcUsdtFuture(asset_leveraged) | EAssetUnion::BtcUsdCmFuture(asset_leveraged) => {
+                                asset_leveraged.update(price.clone())
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Add for SAssetMapV3 {
@@ -120,7 +145,7 @@ impl Add for SAssetMapV3 {
                 .and_modify(|e| *e += value.clone())
                 .or_insert(value);
         }
-        SAssetMapV3{ inner: map }
+        SAssetMapV3 { inner: map }
     }
 }
 
@@ -193,7 +218,7 @@ mod tests {
             assert_eq!(remain, Decimal::from(10));
             assert_eq!(require, Decimal::from(11));
         }
-        
+
         let asset2 = manager.get_mut(EAssetType::Btc);
         assert!(asset2.is_ok());
         let asset2 = asset2.unwrap();

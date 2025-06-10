@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use chrono::{DateTime, Local};
 use crate::data_source::db::api::TDataApi;
-use crate::data_source::db::dao::kline_btc_usdt_1m_dao::SKlineBtcUSDT1mDao;
+use crate::data_source::db::dao::binance_kline_dao::SBinanceKlineDao;
 use crate::data_source::db::{RDBResult, SDbClickhouse};
 use crate::data_source::funding_rate::SFundingRateData;
 use crate::data_source::kline::SKlineData;
@@ -23,12 +23,12 @@ impl Default for SDataApiDb {
 }
 
 impl TDataApi for SDataApiDb {
-    async fn get_kline(&self, from: &DateTime<Local>, to: &DateTime<Local>) -> RDBResult<SKlineData> {
-        let result: SKlineData = SKlineBtcUSDT1mDao::select_range(&self.db, from, to).await?.into();
+    async fn get_kline(&self, table_name: &str, from: &DateTime<Local>, to: &DateTime<Local>) -> RDBResult<SKlineData> {
+        let result: SKlineData = SBinanceKlineDao::select_range(table_name, &self.db, from, to).await?.into();
         Ok(result)
     }
 
-    async fn get_funding_rate(&self, _from: &DateTime<Local>, _to: &DateTime<Local>) -> RDBResult<SFundingRateData> {
+    async fn get_funding_rate(&self, _table_name: &str, _from: &DateTime<Local>, _to: &DateTime<Local>) -> RDBResult<SFundingRateData> {
         todo!()
     }
 }
@@ -45,6 +45,7 @@ mod tests {
     use chrono::Local;
     use crate::data_source::db::api::data_api_db::SDataApiDb;
     use crate::data_source::db::api::TDataApi;
+    use crate::data_source::db::dao::binance_kline_dao::tables::BTC_MARGINED_FUTURE_BTC_1M_TABLE_NAME;
     use crate::data_source::db::SDbClickhouse;
 
     #[tokio::test]
@@ -55,8 +56,9 @@ mod tests {
         let to = now - chrono::Duration::hours(24 * 200) + chrono::Duration::minutes(100);
 
         let api = SDataApiDb::new(db);
+        let table_name = BTC_MARGINED_FUTURE_BTC_1M_TABLE_NAME;
 
-        let data = api.get_kline(&from, &to).await;
+        let data = api.get_kline(table_name, &from, &to).await;
 
         match data {
             Ok(data) => {

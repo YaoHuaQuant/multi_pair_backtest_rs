@@ -101,7 +101,7 @@ impl SDataLogUserUnit {
             locked_assets: user.locked_assets(),
             locked_assets_usdt: assets_map_denominate_usdt(&user.locked_assets(), &trading_pair_prices),
             total_fee: user.total_fee(),
-            total_fee_usdt: assets_map_denominate_usdt_old(&user.total_fee(), &trading_pair_prices),
+            total_fee_usdt: assets_map_denominate_usdt_old(&user.total_fee(), &trading_pair_prices), // todo 将old函数改为new
             target_position_ratio,
         }
     }

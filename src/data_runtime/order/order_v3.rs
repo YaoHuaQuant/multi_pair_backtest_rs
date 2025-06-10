@@ -1,8 +1,6 @@
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use crate::data_runtime::asset::asset::SAsset;
-use crate::data_runtime::asset::asset_leveraged::SAssetLeveraged;
-use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::asset::EAssetType;
 use crate::data_runtime::order::EOrderAction;
 use crate::data_source::trading_pair::ETradingPairType;
@@ -76,7 +74,7 @@ pub struct SOrderV3 {
     /// 锁定的资产对象（买单锁定计价资产 卖单锁定基础资产）
     /// 当锁定资产量 < 所需量时 杠杆率>1
     /// 当锁定资产量 > 所需量时 杠杆率<1
-    locked_asset: Option<EAssetUnion>,
+    locked_asset: Option<SAsset>,
     /// 已支付的fee资产对象（只有Executed状态的Order能够持有此对象）
     paid_fee_asset: Option<SAsset>,
 }
@@ -153,43 +151,18 @@ impl SOrderV3 {
         // 状态校验
         self.state_check(EOrderState::Pending)?;
         // 校验资产量
-        let balance = asset.balance;
-        
-        if self.action == EOrderAction::Buy && balance <= Decimal::from(0) {
+        // 用户提供的资产量
+        let provide_balance = asset.balance;
+        // 订单要求的资产量
+        let required_balance = self.quantity;
+
+        if self.tp_type == ETradingPairType::BtcUsdt && provide_balance <= required_balance {
             // 资产不足
-            Err(EOrderV3Error::AssetQuantityNotEnoughError(asset.as_type, Decimal::from(0), balance, asset))
-        } else if self.action == EOrderAction::Sell && (balance <= Decimal::from(0) || balance > self.quantity) {
-            Err(EOrderV3Error::AssetQuantityNotEnoughError(asset.as_type, self.quantity, balance, asset))
+            Err(EOrderV3Error::AssetQuantityNotEnoughError(asset.as_type, required_balance, provide_balance, asset))
         } else {
             // 资产充足
             // 计算保证金
-            self.locked_asset = match self.tp_type {
-                ETradingPairType::BtcUsdt => {
-                    // 现货保证金
-                    match self.action {
-                        EOrderAction::Buy => { Some(EAssetUnion::Usdt(asset)) }
-                        EOrderAction::Sell => { Some(EAssetUnion::Btc(asset)) }
-                    }
-                }
-                ETradingPairType::BtcUsdtFuture => {
-                    // U本位合约 杠杆保证金
-                    Some(EAssetUnion::BtcUsdtFuture(SAssetLeveraged::new(
-                        self.tp_type,
-                        self.quantity,
-                        asset,
-                        self.price,
-                    ).unwrap()))
-                }
-                ETradingPairType::BtcUsdCmFuture => {
-                    // 币本位合约 杠杆保证金
-                    Some(EAssetUnion::BtcUsdCmFuture(SAssetLeveraged::new(
-                        self.tp_type,
-                        self.quantity,
-                        asset,
-                        self.price,
-                    ).unwrap()))
-                }
-            };
+            self.locked_asset = Some(asset);
             self.state = EOrderState::Unfulfilled;
             Ok(())
         }
@@ -198,7 +171,7 @@ impl SOrderV3 {
     /// 订单成交
     /// 绑定手续费资产
     /// 返回已锁定的资产
-    pub fn execute(&mut self, paid_fee_asset: Option<SAsset>) -> ROrderV3Result<EAssetUnion> {
+    pub fn execute(&mut self, paid_fee_asset: Option<SAsset>) -> ROrderV3Result<SAsset> {
         // 状态校验
         self.state_check(EOrderState::Unfulfilled)?;
         match &self.paid_fee_asset {
@@ -213,7 +186,7 @@ impl SOrderV3 {
                         self.paid_fee_asset = Some(match paid_fee_asset {
                             None => {
                                 SAsset {
-                                    as_type: asset.get_asset_type(),
+                                    as_type: asset.as_type,
                                     balance: Decimal::from(0),
                                 }
                             }
@@ -228,7 +201,7 @@ impl SOrderV3 {
 
     /// 订单取消
     /// 释放已锁定的资产
-    pub fn cancel(&mut self) -> Option<EAssetUnion> {
+    pub fn cancel(&mut self) -> Option<SAsset> {
         self.state = EOrderState::Canceled;
         self.locked_asset.take()
     }
@@ -237,6 +210,8 @@ impl SOrderV3 {
     pub fn get_id(&self) -> Uuid {
         self.id
     }
+    
+    pub fn get_tp_type(&self) -> ETradingPairType {self.tp_type}
 
     pub fn get_state(&self) -> EOrderState {
         self.state
@@ -258,7 +233,7 @@ impl SOrderV3 {
         self.amount
     }
 
-    pub fn get_locked_asset(&self) -> &Option<EAssetUnion> {
+    pub fn get_locked_asset(&self) -> &Option<SAsset> {
         &self.locked_asset
     }
 
@@ -276,7 +251,6 @@ impl SOrderV3 {
 mod tests {
     use rust_decimal::prelude::*;
     use crate::data_runtime::asset::asset::SAsset;
-    use crate::data_runtime::asset::asset_union::EAssetUnion;
     use crate::data_runtime::asset::EAssetType;
     use crate::data_runtime::order::order_v3::{EOrderV3Error, EOrderState, EOrderUpdate, SOrderV3};
     use crate::data_source::trading_pair::ETradingPairType;
@@ -416,11 +390,9 @@ mod tests {
         let mut order = get_unfulfilled_data();
         let r = order.execute(None);
         assert!(r.is_ok());
-        if let EAssetUnion::Usdt(asset) = r.unwrap() {
-            let SAsset { as_type, balance } = asset;
-            assert_eq!(as_type, EAssetType::Usdt);
-            assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
-        }
+        let SAsset { as_type, balance } = r.unwrap();
+        assert_eq!(as_type, EAssetType::Usdt);
+        assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
     }
 
     #[test]
@@ -428,11 +400,9 @@ mod tests {
         let mut order = get_unfulfilled_data();
         let r = order.cancel();
         assert!(r.is_some());
-        if let EAssetUnion::Usdt(asset) = r.unwrap() {
-            let SAsset { as_type, balance } = asset;
-            assert_eq!(as_type, EAssetType::Usdt);
-            assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
-        }
+        let SAsset { as_type, balance } = r.unwrap();
+        assert_eq!(as_type, EAssetType::Usdt);
+        assert_eq!(balance, Decimal::from_str("31.4159260").unwrap());
     }
 
     #[test]

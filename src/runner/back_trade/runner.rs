@@ -38,7 +38,7 @@ pub enum EBackTradeRunnerError {
     OrderActionError(EOrderAction),
     AssetLockedNotEnoughError(EAssetType),
     DenominateSupportOnlyBtcAndUsdtError(EAssetType),
-    MarginMustBeBtcOrUsdtError(EAssetUnion)
+    MarginMustBeBtcOrUsdtError(EAssetUnion),
 }
 
 /// 回测执行器
@@ -417,7 +417,7 @@ impl<D: TDataApi> SBackTradeRunner<D> {
                             EOrderAction::Buy => { user_asset_manager.get_mut(quote_asset_type).unwrap() }
                             EOrderAction::Sell => { user_asset_manager.get_mut(base_asset_type).unwrap() }
                         };
-                        if let Err(e) = user_asset.merge(asset) {
+                        if let Err(e) = user_asset.merge(EAssetUnion::from(asset)) {
                             error!("Error: {:?}", e);
                         }
                         parse_action_result.push(ERunnerSyncActionResult::OrderCanceled(order));
@@ -431,14 +431,14 @@ impl<D: TDataApi> SBackTradeRunner<D> {
             // info!("Start: add_order");
             // info!("add_order:{:?}", add_order);
             let mut new_order = SOrderV3::new(
-                tp_type.clone(), 
-                add_order.price, 
-                add_order.base_quantity, 
-                add_order.action
+                tp_type.clone(),
+                add_order.price,
+                add_order.base_quantity,
+                add_order.action,
             );
             let user_asset = match add_order.action {
-                EOrderAction::Buy => {user_asset_manager.get_mut(quote_asset_type).unwrap()}
-                EOrderAction::Sell => {user_asset_manager.get_mut(base_asset_type).unwrap()}
+                EOrderAction::Buy => { user_asset_manager.get_mut(quote_asset_type).unwrap() }
+                EOrderAction::Sell => { user_asset_manager.get_mut(base_asset_type).unwrap() }
             };
             // info!("margin_quantity:{:?}", add_order.margin_quantity);
             let locked_margin_asset = user_asset.split_allow_negative(add_order.margin_quantity);

@@ -1,1 +1,1 @@
-pub mod kline_btc_usdt_1m_dao;
+pub mod binance_kline_dao;

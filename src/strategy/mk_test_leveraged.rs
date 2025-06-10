@@ -34,12 +34,17 @@ impl TStrategy for SStrategyMkTestLeveraged {
         runner_parse_result: SRunnerParseKlineResult,
         debug_config: &SDebugConfig,
     ) -> Vec<EStrategyAction> {
+        let mut result = Vec::new();
         let SRunnerParseKlineResult {
             tp_type,
             new_kline: kline_unit,
             new_funding_rate: _,
             order_result
         } = runner_parse_result;
+        if tp_type != ETradingPairType::BtcUsdCmFuture {
+            // 只对BtcUsdCmFuture交易对进行操作
+            return result
+        }
         // 输出执行器结果
         if debug_config.is_debug {
             for order_result in order_result {
@@ -47,32 +52,34 @@ impl TStrategy for SStrategyMkTestLeveraged {
             }
         }
 
-        let mut result = Vec::new();
 
         // 从remove_list中删除一个订单
         if let Some(uuid) = self.remove_list.pop_front() {
             result.push(EStrategyAction::CancelOrder(uuid));
         }
 
-        let base_quantity = Decimal::from_str("0.1").unwrap();
-        let action_new_order1 = SStrategyOrderAdd{
-            id: None,
+        let base_quantity = Decimal::from_str("0.0001").unwrap();
+        
+        // 买入开仓
+        let action_new_order1 = SStrategyOrderAdd::new_long_open(
+            None,
             tp_type,
-            action: EOrderAction::Buy,
-            price: kline_unit.low_price,
+            kline_unit.low_price,
             base_quantity,
-            margin_quantity: base_quantity * kline_unit.low_price / Decimal::from(5), // 5倍杠杆
-        };
-        let action_new_order2 = SStrategyOrderAdd{
-            id: None,
-            tp_type,
-            action: EOrderAction::Sell,
-            price: kline_unit.high_price,
-            base_quantity,
-            margin_quantity: base_quantity / Decimal::from(5), // 5倍杠杆
-        };
+            base_quantity * kline_unit.low_price / Decimal::from(5), // 5倍杠杆
+        );
         result.push(EStrategyAction::NewOrder(action_new_order1));
-        result.push(EStrategyAction::NewOrder(action_new_order2));
+        
+        // // 卖出平仓
+        // let action_new_order2 =SStrategyOrderAdd::new_long_close(
+        //     None,
+        //     tp_type,
+        //     kline_unit.high_price,
+        //     base_quantity,
+        //     base_quantity * kline_unit.high_price / Decimal::from(5), // 5倍杠杆
+        // );
+        // result.push(EStrategyAction::NewOrder(action_new_order2));
+        
         result
     }
 

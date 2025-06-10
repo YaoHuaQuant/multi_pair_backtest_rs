@@ -66,6 +66,14 @@ impl SAsset {
             balance,
         }
     }
+    
+    pub fn get_balance(&self) -> Decimal {
+        self.balance
+    }
+    
+    pub fn get_type(&self) -> EAssetType {
+        self.as_type
+    }
 }
 
 

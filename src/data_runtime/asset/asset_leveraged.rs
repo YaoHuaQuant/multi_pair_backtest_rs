@@ -87,6 +87,15 @@ impl SAssetLeveraged {
         })
     }
 
+    pub fn init(tp_type: ETradingPairType, base_asset: SAsset, quote_asset: SAsset, margin_asset: SAsset) -> Self {
+        Self {
+            tp_type,
+            base_asset,
+            quote_asset,
+            margin_asset,
+        }
+    }
+
     pub fn update(&mut self, price: Decimal) {
         let diff_quote = self.base_asset.balance * price + self.quote_asset.balance;
         let diff_asset = self.quote_asset.split_allow_negative(diff_quote);
@@ -192,9 +201,11 @@ impl SAssetLeveraged {
         let remaining_base_balance = self.base_asset.balance;
         let remaining_quote_balance = self.quote_asset.balance;
         let remaining_margin_balance = self.margin_asset.balance;
-        let quote_balance = remaining_quote_balance * base_balance / remaining_base_balance;
-        let margin_balance = remaining_margin_balance * base_balance / remaining_base_balance;
-
+        let (quote_balance, margin_balance) = if remaining_base_balance != Decimal::from(0) {
+            (remaining_quote_balance * base_balance / remaining_base_balance, remaining_margin_balance * base_balance / remaining_base_balance)
+        } else {
+            (Decimal::from(0), Decimal::from(0))
+        };
         let new_base_asset = self.base_asset.split_allow_negative(base_balance);
         let new_quote_asset = self.quote_asset.split_allow_negative(quote_balance);
         let new_margin_asset = self.margin_asset.split_allow_negative(margin_balance);
@@ -421,11 +432,11 @@ mod tests {
         assert_eq!(asset1.get_direction(), EOrderDirection::Long);
         assert_eq!(asset1.get_leverage(), Decimal::from(10));
     }
-    
+
     #[test]
     pub fn test_margin_withdraw() {
         let mut asset1 = get_test_data1();
-        let withdraw_amount  = Decimal::from(5_000);
+        let withdraw_amount = Decimal::from(5_000);
         let r = asset1.margin_withdraw(withdraw_amount);
         assert!(r.is_ok());
 
@@ -444,7 +455,7 @@ mod tests {
     #[test]
     pub fn test_margin_withdraw_fail() {
         let mut asset1 = get_test_data1();
-        let withdraw_amount  = Decimal::from(20_000);
+        let withdraw_amount = Decimal::from(20_000);
         let r = asset1.margin_withdraw(withdraw_amount);
         assert!(r.is_err());
 
@@ -464,9 +475,8 @@ mod tests {
 
         assert_eq!(asset1.get_direction(), EOrderDirection::Long);
         assert_eq!(asset1.get_leverage(), Decimal::from(10));
-        
     }
-    
+
     #[test]
     pub fn test_split() {
         let mut asset1 = get_test_data1();

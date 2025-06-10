@@ -23,6 +23,7 @@ use crate::{
 use crate::config::SDebugConfig;
 use crate::config::user::INIT_BALANCE_USDT;
 use crate::data_runtime::asset::asset::SAsset;
+use crate::data_runtime::asset::asset_leveraged::SAssetLeveraged;
 use crate::data_runtime::asset::asset_map::SAssetMap;
 use crate::data_runtime::asset::asset_map_v3::RAssetMapV3Result;
 use crate::data_runtime::asset::asset_union::EAssetUnion;
@@ -73,6 +74,27 @@ impl<S: TStrategy> SUser<S> {
         available_assets.merge_asset(
             EAssetUnion::from(SAsset{ as_type: EAssetType::Btc, balance: config.init_balance_btc })
         );
+        available_assets.merge_asset(
+            EAssetUnion::BtcUsdCmFuture(
+                SAssetLeveraged::init(
+                    ETradingPairType::BtcUsdCmFuture,
+                    SAsset{ as_type: EAssetType::BtcUsdCmFuture, balance: Decimal::from(0) },
+                    SAsset{ as_type: EAssetType::Btc, balance: Decimal::from(0) },
+                    SAsset{ as_type: EAssetType::Btc, balance: Decimal::from(0) },
+                )
+            )
+        );
+        // todo 初始化U本位合约
+        // available_assets.merge_asset(
+        //     EAssetUnion::BtcUsdtFuture(
+        //         SAssetLeveraged::init(
+        //             ETradingPairType::BtcUsdtFuture,
+        //             SAsset{ as_type: EAssetType::BtcUsdtFuture, balance: Decimal::from(0) },
+        //             SAsset{ as_type: EAssetType::Btc, balance: Decimal::from(0) },
+        //             SAsset{ as_type: EAssetType::Btc, balance: Decimal::from(0) },
+        //         )
+        //     )
+        // );
         let mut tp_order_map = STradingPairOrderManagerMapV3 { inner: Default::default() };
         tp_order_map.inner.insert(ETradingPairType::BtcUsdt, SOrderManagerV3::new(ETradingPairType::BtcUsdt));
         tp_order_map.inner.insert(ETradingPairType::BtcUsdCmFuture, SOrderManagerV3::new(ETradingPairType::BtcUsdCmFuture));

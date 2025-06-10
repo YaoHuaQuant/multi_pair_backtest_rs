@@ -252,7 +252,9 @@ where
         let strategy = S::default();
         // let position = strategy.get_position(date_from).unwrap();
         let position = Decimal::from_f64(0.5).unwrap();
-        let price = runner.get_price(date_from, ETradingPairType::BtcUsdt).unwrap().close_price;
+        // todo 
+        // let price = runner.get_price(date_from, ETradingPairType::BtcUsdt).unwrap().close_price;
+        let price = runner.get_price(date_from, ETradingPairType::BtcUsdCmFuture).unwrap().close_price;
         let init_asset_total_usdt = Decimal::from_f64(INIT_BALANCE_USDT).unwrap();
         let init_balance_btc = init_asset_total_usdt * position / price;
         let init_balance_usdt = init_asset_total_usdt * (Decimal::from(1) - position);

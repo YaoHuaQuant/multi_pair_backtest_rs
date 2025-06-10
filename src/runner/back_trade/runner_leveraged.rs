@@ -20,6 +20,7 @@ use crate::{data_runtime::{
     TRunner,
 }, strategy::TStrategy};
 use crate::config::back_trade_period::SAMPLE_PERIOD;
+use crate::data_runtime::asset::asset_leveraged::SAssetLeveraged;
 use crate::data_runtime::asset::asset_union::EAssetUnion;
 use crate::data_runtime::order::order_v3::SOrderV3;
 use crate::data_runtime::user::SUser;
@@ -39,7 +40,7 @@ pub enum ELeveragedBackTradeRunnerError {
     OrderActionError(EOrderAction),
     AssetLockedNotEnoughError(EAssetType),
     DenominateSupportOnlyBtcAndUsdtError(EAssetType),
-    MarginMustBeBtcOrUsdtError(EAssetUnion)
+    MarginMustBeBtcOrUsdtError(EAssetUnion),
 }
 
 /// 回测执行器
@@ -57,6 +58,10 @@ pub struct SLeveragedBackTradeRunner<D: TDataApi> {
 
 impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
     fn run(&mut self, users: &mut Vec<SUser<S>>, debug_config: SDebugConfig) -> SRunnerResult {
+        // 初始化报价
+        self.trading_pair_prices.insert(ETradingPairType::BtcUsdt, Decimal::from(1));
+        // self.trading_pair_prices.insert(ETradingPairType::BtcUsdtFuture, Decimal::from(1));
+        self.trading_pair_prices.insert(ETradingPairType::BtcUsdCmFuture, Decimal::from(1));
         // 循环遍历k线 根据时间间隔1分钟
         let mut current_date = self.config.date_from;
         while current_date < self.config.date_to {
@@ -65,7 +70,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
             // 用于记录报价
             let mut trading_pair_klines: HashMap<ETradingPairType, SKlineUnitData> = HashMap::new();
             // let mut trading_pair_prices: HashMap<ETradingPairType, Decimal> = HashMap::new();
-            self.trading_pair_prices.clear();
+            // self.trading_pair_prices.clear(); // 当价格不完整时 使用旧的报价
 
             // 用于记录交易量 key-user_id value-transfer_info
             let mut transfer_info_map: HashMap<Uuid, SDataLogTransferUnit> = HashMap::new();
@@ -98,6 +103,8 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
                 self.trading_pair_prices.entry(tp_type.clone())
                     .and_modify(|e| *e = kline_unit_data.close_price)
                     .or_insert(kline_unit_data.close_price);
+
+                // dbg!(&self.trading_pair_prices);
 
                 for user in users.iter_mut() {
                     let (
@@ -132,6 +139,7 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
                             // }
 
                             // 根据策略行为，调整订单数据。
+                            // dbg!(&strategy_actions);
                             let parse_action_results = self.sync_strategy_action(
                                 strategy_actions,
                                 tp_type,
@@ -160,6 +168,12 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
                             user.strategy.verify(tp_type, parse_action_results, &debug_config);
                         }
                     }
+                    // info!("before:");
+                    // dbg!(&user.available_assets);
+                    // 根据最新价格 更新杠杆资产的数据
+                    user.available_assets.update_leveraged(&self.trading_pair_prices);
+                    // info!("after:");
+                    dbg!(&user.available_assets);
                 }
             }
 
@@ -179,16 +193,24 @@ impl<S: TStrategy, D: TDataApi> TRunner<S> for SLeveragedBackTradeRunner<D> {
                 }
                 // debug!("transfer_info_map: {:?}", transfer_info_map);
                 // debug!("user.id: {:?}", user.id);
+                // dbg!(&user.tp_order_map);
+
                 let transfer_info = transfer_info_map.get(&user.id).unwrap();
                 let target_position_ratio = Some(Decimal::from(user.strategy.get_log_info().target_position_ratio));
                 let user_data = SDataLogUserUnit::new(current_date, user, target_position_ratio, &self.trading_pair_prices, transfer_info);
                 let position_ratio = (user_data.total_assets_usdt - user_data.total_usdt) / user_data.total_assets_usdt * Decimal::from(100);
 
                 if debug_config.is_info {
-                    dbg!(&user.tp_order_map);
-                    dbg!(&user.available_assets);
-                    info!("用户信息:{:?}\t仓位:{:.2?}%\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}\t买单数量:{:?}\t卖单数量:{:?}",
-                    user_data.user_name, position_ratio, user_data.total_assets_usdt, user_data.total_usdt, user_data.total_fee_usdt, buy_order_num, sell_order_num);
+                    info!("用户信息:{:?}\t仓位:{:.2?}%\t总资产 {:.4?}\t资产 {:.4?}\t现金 {:.4?}\t累计手续费 {:.4?}\t买单数量:{:?}\t卖单数量:{:?}",
+                        user_data.user_name, 
+                        position_ratio, 
+                        user_data.total_assets_usdt, 
+                        user_data.total_assets_usdt - user_data.total_usdt,
+                        user_data.total_usdt, 
+                        user_data.total_fee_usdt, 
+                        buy_order_num, 
+                        sell_order_num
+                    );
                 }
                 self.data_logger.add_user_data(user_data);
             }
@@ -271,12 +293,15 @@ impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
                 break;
             }
             let mut order = order_manager.pop_highest_buy_order().unwrap().unwrap();
+            let tp_type = order.get_tp_type();
+            let price = order.get_price();
             let base_quantity = order.get_quantity();
             let quote_quantity = order.get_amount();
             // 计算手续费(计价资产)
             let fee_quote_asset = EAssetUnion::from(SAsset {
                 as_type: quote_asset_type,
-                balance: quote_quantity * maker_order_fee,
+                // 手续费必须为正数（避免做空时支付空的手续费）
+                balance: quote_quantity.abs() * maker_order_fee,
             });
             // 计算手续费(USDT计价)
             let fee_usdt = SAsset {
@@ -286,16 +311,47 @@ impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
             // 结算资产
             // 提取订单锁定的计价资产 生成基础资产
             match order.execute(Some(fee_usdt)) {
-                // consumed_quote_asset会被自动析构 代表订单的锁定资产被消耗
-                Ok(_consumed_quote_asset) => {
-                    // 用户获得基础资产
-                    let obtain_base_asset = EAssetUnion::from(SAsset {
-                        as_type: base_asset_type,
-                        balance: base_quantity - base_quantity * maker_order_fee,
-                    });
+                // consumed_margin_asset会被自动析构 代表订单的锁定资产被消耗
+                Ok(consumed_margin_asset) => {
+                    let debug_consumed_margin_asset = consumed_margin_asset.clone();
+                    // 用户获得资产
+                    let balance = base_quantity - base_quantity.abs() * maker_order_fee;
+                    let obtain_base_asset = match tp_type {
+                        // 现货交易时 获得基础资产
+                        ETradingPairType::BtcUsdt => {
+                            EAssetUnion::from(SAsset {
+                                as_type: base_asset_type,
+                                balance,
+                            })
+                        }
+                        ETradingPairType::BtcUsdtFuture => {
+                            // 合约交易时 获得杠杆资产
+                            EAssetUnion::BtcUsdtFuture(SAssetLeveraged::new(
+                                tp_type,
+                                balance,
+                                consumed_margin_asset,
+                                price,
+                            ).unwrap())
+                        }
+                        ETradingPairType::BtcUsdCmFuture => {
+                            // 合约交易时 获得杠杆资产
+                            EAssetUnion::BtcUsdCmFuture(SAssetLeveraged::new(
+                                tp_type,
+                                balance,
+                                consumed_margin_asset,
+                                price,
+                            ).unwrap())
+                        }
+                    };
 
                     if debug_config.is_debug {
-                        debug!("结算买单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_quote_asset, &obtain_base_asset, &_consumed_quote_asset);
+                        debug!("\n结算买单: {:?}\n挂单价:{:?}\n挂单量:{:?}\n手续费:{:?}\n用户获得资产:{:?}\n用户消耗资产:{:?}", 
+                            order.get_id(),
+                            order.get_price(),
+                            order.get_quantity(),
+                            &fee_quote_asset, 
+                            &obtain_base_asset, 
+                            &debug_consumed_margin_asset);
                     }
 
                     user_asset_manager.merge_asset(obtain_base_asset);
@@ -321,31 +377,86 @@ impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
                 break;
             }
             let mut order = order_manager.pop_lowest_sell_order().unwrap().unwrap();
+            let tp_type = order.get_tp_type();
+            let price = order.get_price();
             let base_quantity = order.get_quantity();
-            // 计算手续费(基础资产)
-            let fee_base_asset = EAssetUnion::from(SAsset {
-                as_type: base_asset_type,
-                balance: base_quantity * maker_order_fee,
-            });
+            // let quote_quantity = order.get_amount();
+            // 计算手续费
+            let fee_base_asset = match base_asset_type {
+                EAssetType::Usdt | EAssetType::Btc => {
+                    // 现货手续费为基础资产
+                    EAssetUnion::from(SAsset {
+                        as_type: base_asset_type,
+                        balance: base_quantity.abs() * maker_order_fee,
+                    })
+                }
+                EAssetType::BtcUsdtFuture => {
+                    // 合约手续费为保证金资产
+                    EAssetUnion::Usdt(SAsset {
+                        as_type: EAssetType::Usdt,
+                        balance: base_quantity.abs() * price * maker_order_fee,
+                    })
+                }
+                EAssetType::BtcUsdCmFuture => {
+                    // 合约手续费为保证金资产
+                    EAssetUnion::Btc(SAsset {
+                        as_type: EAssetType::Btc,
+                        balance: base_quantity.abs() * maker_order_fee,
+                    })
+                }
+            };
+
             // 计算手续费(USDT计价)
             let fee_usdt = SAsset {
                 as_type: EAssetType::Usdt,
                 balance: assets_denominate_usdt(&fee_base_asset, &self.trading_pair_prices),
             };
-            let quote_quantity = order.get_amount();
             // 结算资产
             // 提取订单锁定的基础资产 生成计价资产
             match order.execute(Some(fee_usdt)) {
-                // consumed_base_asset会被自动析构 代表订单的锁定资产被消耗
-                Ok(_consumed_base_asset) => {
-                    // 用户获得计价资产
-                    let obtain_quote_asset = EAssetUnion::from(SAsset {
-                        as_type: quote_asset_type,
-                        balance: quote_quantity - quote_quantity * maker_order_fee,
-                    });
+                // consumed_margin_asset 代表订单的锁定资产被消耗
+                Ok(consumed_margin_asset) => {
+                    let debug_consumed_margin_asset = consumed_margin_asset.clone();
+
+                    // 用户获得资产
+                    let balance = base_quantity - base_quantity.abs() * maker_order_fee;
+                    let obtain_quote_asset = match tp_type {
+                        // 现货交易时 获得计价资产
+                        ETradingPairType::BtcUsdt => {
+                            EAssetUnion::from(SAsset {
+                                as_type: quote_asset_type,
+                                balance,
+                            })
+                        }
+                        ETradingPairType::BtcUsdtFuture => {
+                            // 合约交易时 获得杠杆资产
+                            EAssetUnion::BtcUsdtFuture(SAssetLeveraged::new(
+                                tp_type,
+                                balance,
+                                consumed_margin_asset,
+                                price,
+                            ).unwrap())
+                        }
+                        ETradingPairType::BtcUsdCmFuture => {
+                            // 合约交易时 获得杠杆资产
+                            EAssetUnion::BtcUsdCmFuture(SAssetLeveraged::new(
+                                tp_type,
+                                balance,
+                                consumed_margin_asset,
+                                price,
+                            ).unwrap())
+                        }
+                    };
 
                     if debug_config.is_debug {
-                        debug!("结算卖单: {:?}\t挂单价:{:?}\t挂单量:{:?}\t手续费:{:?}\t用户获得资产:{:?}\t用户消耗资产:{:?}", order.get_id(),order.get_price(), order.get_quantity(), &fee_base_asset, &obtain_quote_asset, &_consumed_base_asset);
+                        debug!("\n结算卖单: {:?}\n挂单价:{:?}\n挂单量:{:?}\n手续费:{:?}\n用户获得资产:{:?}\n用户消耗资产:{:?}", 
+                            order.get_id(),
+                            order.get_price(), 
+                            order.get_quantity(),
+                            &fee_base_asset, 
+                            &obtain_quote_asset,
+                            &debug_consumed_margin_asset
+                        );
                     }
                     user_asset_manager.merge_asset(obtain_quote_asset);
                     order_results.push(ERunnerParseOrderResult::OrderExecuted(order.clone()));
@@ -420,7 +531,7 @@ impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
                             EOrderAction::Buy => { user_asset_manager.get_mut(quote_asset_type).unwrap() }
                             EOrderAction::Sell => { user_asset_manager.get_mut(base_asset_type).unwrap() }
                         };
-                        if let Err(e) = user_asset.merge(asset) {
+                        if let Err(e) = user_asset.merge(EAssetUnion::from(asset)) {
                             error!("Error: {:?}", e);
                         }
                         parse_action_result.push(ERunnerSyncActionResult::OrderCanceled(order));
@@ -432,22 +543,36 @@ impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
         // 处理新增订单 资产结算
         for add_order in add_orders {
             // info!("Start: add_order");
-            // info!("add_order:{:?}", add_order);
-            let SStrategyOrderAdd { 
-                id:_, 
-                tp_type, 
-                action, 
-                price, 
-                base_quantity, 
+            // if debug_config.is_info { info!("add_order:\t{:?}", add_order); }
+
+            let SStrategyOrderAdd {
+                id: _,
+                tp_type,
+                action,
+                price,
+                base_quantity,
                 margin_quantity
             } = add_order;
             let mut new_order = SOrderV3::new(tp_type, price, base_quantity, action);
-            let user_asset = match action {
-                EOrderAction::Buy => {user_asset_manager.get_mut(quote_asset_type).unwrap()}
-                EOrderAction::Sell => {user_asset_manager.get_mut(base_asset_type).unwrap()}
+            let margin_asset_type = match tp_type {
+                ETradingPairType::BtcUsdt => {
+                    match action {
+                        EOrderAction::Buy => { quote_asset_type }
+                        EOrderAction::Sell => { base_asset_type }
+                    }
+                }
+                ETradingPairType::BtcUsdtFuture | ETradingPairType::BtcUsdCmFuture => {quote_asset_type}
             };
-            // info!("margin_quantity:{:?}", add_order.margin_quantity);
-            let locked_margin_asset = user_asset.split_allow_negative(margin_quantity);
+            let user_asset = user_asset_manager.get_mut(margin_asset_type).unwrap();
+            // info!("\nmargin_quantity:\t{:?}", margin_quantity);
+            let split_user_asset = user_asset.split_allow_negative(margin_quantity);
+            // info!("\nsplit_user_asset:\t{:?}", split_user_asset);
+            let locked_margin_asset = match split_user_asset {
+                EAssetUnion::Usdt(_) | EAssetUnion::Btc(_) => { split_user_asset }
+                EAssetUnion::BtcUsdtFuture(leveraged_asset) | EAssetUnion::BtcUsdCmFuture(leveraged_asset) => {
+                    EAssetUnion::from(leveraged_asset.get_margin().clone())
+                }
+            };
             // info!("locked_margin_asset:{:?}", locked_margin_asset);
             match locked_margin_asset {
                 EAssetUnion::Usdt(asset) | EAssetUnion::Btc(asset) => {
@@ -455,7 +580,7 @@ impl<D: TDataApi> SLeveragedBackTradeRunner<D> {
                         error!("Error: {:?}", e);
                     }
 
-                    if debug_config.is_debug { debug!("新增订单: {:?}", &new_order); }
+                    // if debug_config.is_info { debug!("新增订单: {:?}", &new_order); }
 
                     if let Err(e) = order_manager.insert_order(new_order.clone()) {
                         error!("Error: {:?}", e);
